@@ -22,7 +22,7 @@ namespace Template {
 		OpenCLBuffer<int> buffer = new OpenCLBuffer<int>( ocl, 512 * 512 );
 		// create an OpenGL texture to which OpenCL can send data
 		OpenCLImage<int> image = new OpenCLImage<int>( ocl, 512, 512 );
-		OpenCLBuffer<float3> p1, p2, p3, t1, t2, t3, color;
+		OpenCLBuffer<float3> p1, p2, p3, t1, t2, t3, color, lPos, lCol;
 		OpenCLBuffer<bool> isLight;
 		OpenCLBuffer<float> reflectivity, refractionIndex;
 		OpenCLBuffer<int> texId;
@@ -35,14 +35,15 @@ namespace Template {
 		public void Init()
 		{
 			var raytracer = new Raytracer(1);
-			int vCount = raytracer.Scene.Count;
+			int vCount = raytracer.Scene.Count, lCount = raytracer.Lights.Count;
 			float3[] p1t = new float3[vCount], p2t = new float3[vCount], p3t = new float3[vCount],
-				t1t = new float3[vCount], t2t = new float3[vCount], t3t = new float3[vCount], colort = new float3[vCount];
+				t1t = new float3[vCount], t2t = new float3[vCount], t3t = new float3[vCount], colort = new float3[vCount],
+				lPost = new float3[lCount], lColt = new float3[lCount];
 			bool[] isLightt = new bool[vCount];
 			float[] reflectivityt = new float[vCount], refractionIndext = new float[vCount];
 			int[] texIdt = new int[vCount];
 			var scene = raytracer.Scene;
-			for(int i = 0; i < raytracer.Scene.Count; i++)
+			for(int i = 0; i < scene.Count; i++)
             {
 				p1t[i] = VecToF3(scene[i].Point1);
 				p2t[i] = VecToF3(scene[i].Point2);
@@ -56,6 +57,13 @@ namespace Template {
 				texIdt[i] = -1;
 				isLightt[i] = false;
 			}
+			var lights = raytracer.Lights;
+			for(int i = 0; i < lights.Count; i++)
+            {
+				lPost[i] = VecToF3(lights[i].Position);
+				lColt[i] = VecToF3(lights[i].Color);
+			}
+
 			p1 = new OpenCLBuffer<float3>(ocl, p1t);
 			p2 = new OpenCLBuffer<float3>(ocl, p2t);
 			p3 = new OpenCLBuffer<float3>(ocl, p3t);
@@ -67,6 +75,8 @@ namespace Template {
 			reflectivity = new OpenCLBuffer<float>(ocl, reflectivityt);
 			refractionIndex = new OpenCLBuffer<float>(ocl, refractionIndext);
 			texId = new OpenCLBuffer<int>(ocl, texIdt);
+			lPos = new OpenCLBuffer<float3>(ocl, lPost);
+			lCol = new OpenCLBuffer<float3>(ocl, lColt);
 
 			kernel.SetArgument(4, p1);
 			kernel.SetArgument(5, p2);
@@ -79,6 +89,8 @@ namespace Template {
 			kernel.SetArgument(12, reflectivity);
 			kernel.SetArgument(13, refractionIndex);
 			kernel.SetArgument(14, texId);
+			kernel.SetArgument(15, lPos);
+			kernel.SetArgument(16, lCol);
 		}
 
 		float3 VecToF3(Vector3 vec)

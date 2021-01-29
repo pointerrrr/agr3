@@ -1,0 +1,26 @@
+//screen
+image
+//pos
+(vec3
+vec3
+vec3)*
+//tex
+(vec3
+vec3
+vec3)*
+//color
+vec3*
+//light
+bool*
+//reflectivity
+float*
+//refraction index
+float*
+//texId
+int*
+//startpos
+vec3
+//direction
+vec3
+//fov
+float

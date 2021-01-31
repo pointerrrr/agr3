@@ -1,10 +1,4 @@
 #define GLINTEROP
-bool castShadowRay(float3 lightPos, float3 intersectionPosition)
-{
-    float distToLight = length(lightPos - intersectionPosition);
-
-}
-
 float Intersect(float3 pos, float3 dir, float3 p1, float3 p2, float3 p3)
 {
     float Epsilon = 0.0001f;
@@ -47,6 +41,20 @@ float Intersect(float3 pos, float3 dir, float3 p1, float3 p2, float3 p3)
     return intersection;*/
 }
 
+bool castShadowRay(float3 lightPos, float3 intersectionPosition, __global float3* p1, __global float3* p2, __global float3* p3, int objAmount )
+{
+    float distToLight = length(lightPos - intersectionPosition);
+    float3 rayDirection = normalize(lightPos - intersectionPosition);
+    for (int i = 0; i < objAmount; i++)
+    {
+        float currentDistance = Intersect(intersectionPosition, rayDirection, p1[i], p2[i], p3[i]);
+        if (isnan(currentDistance) == 1 || isinf(currentDistance) == 1)
+            continue;
+        if(currentDistance < distToLight && currentDistance > 0.0001f)
+            return false;
+    }
+    return true;
+}
 
 
 #ifdef GLINTEROP
@@ -117,7 +125,7 @@ __kernel void device_function( __global int* a, float t )
     float3 illumination = (float3)(0.f, 0.f, 0.f);
     for (int i = 0; i < lightAmount; i++)
     {
-        if (castShadowRay(lightPos[i], intersectionPosition))
+        if (castShadowRay(lightPos[i], intersectionPosition, p1, p2, p3, objAmount))
         {
             float distance = length(lightPos[i] - intersectionPosition);
             float attenuation = 1.f / (distance * distance);
@@ -125,9 +133,6 @@ __kernel void device_function( __global int* a, float t )
 
             if (nDotL < 0)
                 continue;
-            printf("%f", nDotL);
-            printf(" %f", attenuation);
-            printf(" %f\n", lightCol[i]);
             illumination += nDotL * attenuation * lightCol[i];
         }
     }

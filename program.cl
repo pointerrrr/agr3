@@ -50,8 +50,8 @@ float Intersect(float3 pos, float3 dir, float3 p1, float3 p2, float3 p3)
 
 #ifdef GLINTEROP
 __kernel void device_function( write_only image2d_t a, float fov, float3 position, float3 direction, __global float3* p1, __global float3* p2, __global float3* p3, 
-	__global float3* t1, __global float3* t2, __global float3* t3, __global float3* normals, int objAmount, __global float3* color, __global bool* isLight,
-	__global float* reflectivity, __global float* refractionIndex, __global int* texId, __global float3* lightPos, __global float3* lightCol, int lightAmount)
+	__global float3* t1, __global float3* t2, __global float3* t3, __global float3* normals, __global int* objAmount, __global float3* color, __global bool* isLight,
+	__global float* reflectivity, __global float* refractionIndex, __global int* texId, __global float3* lightPos, __global float3* lightCol, __global int* lightAmount)
 #else
 __kernel void device_function( __global int* a, float t )
 #endif
@@ -70,19 +70,22 @@ __kernel void device_function( __global int* a, float t )
     float bestDistance = MAXFLOAT;
     // TODO: currently we do not use the bvh so try to implement this
     // Determine closest object
+    
+    // Something something about unrolling
     for (int i = 0; i < objAmount; i++)
     {
+        // returns a lot of inf
         currentDistance = Intersect(position, direction, p1[i], p2[i], p3[i]);
 
-        // CurrentDistance is NaN so we do not hit the current object therefore we continue
-        if (isnan(currentDistance) == 0)
+        // CurrentDistance is NaN of Inf so we do not hit the current object therefore we skip
+        if (isnan(currentDistance) == 1 || isinf(currentDistance) == 1)
             continue;
         if (currentDistance < bestDistance) {
             bestDistance = currentDistance;
             closestObject = i;
         }
     }
-
+    
     // Check if the normal needs to be flipped
     float3 currentNormal;
     if (dot(normals[closestObject], direction) > 0)
@@ -90,11 +93,25 @@ __kernel void device_function( __global int* a, float t )
     else
         currentNormal = normals[closestObject];
 
+    //For whatever FUCKING REASON is it now allowed to call the function below after the if statement
+    // Somehow that if statement fucks it all up and i have no idea how the fuck its doing that
+    // And it has nothing to do with the two write_imaged calls. Removing the if statement "fixes" it
+    // making it write to a variable also doesn't fix it
+    // REEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
+    // Why the fuck is my fucking driver crashing when running this code. THIS MAKES ABSOLUTELY NO FUCKING SENSE
+    // Something is wacky with the closestObject integer. I'm not allowed to print it to the console either
+    // Doing anything with the closestObject for some reason fucks with the system.
+    // But why, its just an int. How the fuck can an int derail this fucking thing so fucking bad
+    // Fuck fuck fuck fuck fuck, pls no. 
+    // It migth have something to do with multithreading. Yeeeeeeeeeeeeeeeey, fuck my life.
 
+    write_imagef(a, (int2)(idx, idy), (float4)(0.f, 1.f, 1.f, 0.f));
     // TODO: Hit skybox
     if (closestObject == -1)
+    {    
         return;
-
+    }
+    //write_imagef(a, (int2)(get_global_id(0), get_global_id(1)), (float4)(0.f, 0.f, 1.f, 0.f));
     float3 intersectionPosition = position + (direction * bestDistance);
     float3 illumination = (float3)(0.f, 0.f, 0.f);
     for (int i = 0; i < lightAmount; i++)
@@ -110,11 +127,11 @@ __kernel void device_function( __global int* a, float t )
             illumination += nDotL * attenuation * lightCol[i];
         }
     }
-
+    
     if (reflectivity[closestObject] != 0) {
         // TODO: Add reflectivity
     }
-
+    
     if (refractionIndex[closestObject] != 0)
     {
         // TODO: Add refractions
@@ -127,11 +144,11 @@ __kernel void device_function( __global int* a, float t )
 
     // TODO: Add reflectivity, refraction  and texture to color
    float3 currentColor = color[closestObject] * illumination;
+   //write_imagef(a, (int2)(idx, idy), (float4)(0.f, 1.f, 1.f, 0.f));
+
+
     
 
-
-    write_imagef(a, (int2)(idx, idy), (float4)(0.f, 1.f, 1.f, 0.f));
-	
 }
 
 /*// Begin steeds meer te denken om dit fucking ding gewoon in de device_fucntion method te gooien

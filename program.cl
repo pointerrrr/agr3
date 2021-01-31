@@ -66,11 +66,13 @@ __kernel void device_function( __global int* a, float t )
     
     // Loop over every object
     float currentDistance = -1;
-    int closestObject = -1;
+    //HOW THE FUCK IS closestObject 0.0000000, When initialize it as FUCKING -1
+    // THATS IT IM FUCKING DONE
+    int closestObject = -20;
     float bestDistance = MAXFLOAT;
     // TODO: currently we do not use the bvh so try to implement this
     // Determine closest object
-    
+    printf(" %f ", closestObject);
     // Something something about unrolling
     for (int i = 0; i < objAmount; i++)
     {
@@ -83,6 +85,7 @@ __kernel void device_function( __global int* a, float t )
         if (currentDistance < bestDistance) {
             bestDistance = currentDistance;
             closestObject = i;
+            
         }
     }
     

@@ -73,83 +73,93 @@ __kernel void device_function( __global int* a, float t )
 	float2 fragCoord = (float2)( (float)idx, (float)idy ), resolution = (float2)( 512, 512 );
 	float3 col = (float3)( 1.f, 2.f, 3.f );
 
+    float3 rayLocation[1024];
+    float3 rayDirection[1024];
+
     float3 horizontal = rightUpperCorner - leftUpperCorner;
     float3 vertical = leftLowerCorner - leftUpperCorner;
     float3 pixelLocation = leftUpperCorner + (horizontal / 512) * idx + (vertical / 512) * idy;
+    int counter = 1;
+    float3 reflectionColor = (float3)(0.f, 0.f, 0.f);
+    float3 refractionColor = (float3)(0.f, 0.f, 0.f);
 
-    float3 ray = pixelLocation - position;
+    rayLocation[0] = pixelLocation - position;
     
-    float3 direction = normalize(ray);
-    // Loop over every object
-    float currentDistance = -1;
-    int closestObject = -1;
-    
-    float bestDistance = MAXFLOAT;
-    // TODO: currently we do not use the bvh so try to implement this
-    // Determine closest object
-    // Something something about unrolling
-    for (int i = 0; i < objAmount; i++)
-    {
-        
-        // returns a lot of inf
-        currentDistance = Intersect(position, direction, p1[i], p2[i], p3[i]);
-        // CurrentDistance is NaN of Inf so we do not hit the current object therefore we skip
-        if (isnan(currentDistance) == 1 || isinf(currentDistance) == 1)
+    rayDirection[0] = normalize(ray);
+
+    // Recursion is not allowed so my idea was to use an array or a queue to put the rays in it
+    // I started working on an array but a down side is that arrays of flexible size are not allowed. 
+    for (int i = 0; i < 1024; i++) {
+        // no ray present
+        if (length(raydirection[i]) <= 0)
             continue;
-        if (currentDistance < bestDistance) {
-            bestDistance = currentDistance;
-            closestObject = i;
 
-        }
-    }
+        // Get current position and ray direction
+        float3 currentPosition = rayLocation[i];
+        float3 currentDirection = rayDirection[i];
 
-     // TODO: Hit skybox
-    if (closestObject < 0)
-    {
-        write_imagef(a, (int2)(idx, idy), (float4)(0.f, 0.f, 0.f, 0.f));
-        return;
-    }
+        // Loop over every object
+        float currentDistance = -1;
+        int closestObject = -1;
+        float bestDistance = MAXFLOAT;
 
-    // Check if the normal needs to be flipped
-    float3 currentNormal;
-    if (dot(normals[(int)closestObject], direction) > 0)
-        currentNormal = normals[(int)closestObject] * -1;
-    else
-        currentNormal = normals[(int)closestObject];
-
-    //write_imagef(a, (int2)(idx, idy), (float4)(0.f, 0.f, 1.f, 0.f));
-   
-    
-    
-    float3 intersectionPosition = position + (direction * bestDistance);
-    float3 illumination = (float3)(0.f, 0.f, 0.f);
-    for (int i = 0; i < lightAmount; i++)
-    {
-        if (castShadowRay(lightPos[i], intersectionPosition, p1, p2, p3, objAmount))
+        // TODO: currently we do not use the bvh so try to implement this
+        // Determine closest object
+        for (int j = 0; j < objAmount; j++)
         {
-            float distance = length(lightPos[i] - intersectionPosition);
-            float attenuation = 1.f / (distance * distance);
-            float nDotL = dot(currentNormal, normalize(lightPos[i] - intersectionPosition));
-
-            if (nDotL < 0)
+            currentDistance = Intersect(currentPosition, currentDirection, p1[j], p2[j], p3[j]);
+            // CurrentDistance is NaN of Inf so we do not hit the current object therefore we skip
+            if (isnan(currentDistance) == 1 || isinf(currentDistance) == 1)
                 continue;
-            illumination += nDotL * attenuation * lightCol[i];
+            if (currentDistance < bestDistance) {
+                bestDistance = currentDistance;
+                closestObject = i;
+
+            }
+        }
+
+        // TODO: Hit skybox
+        if (closestObject < 0)
+            continue;
+
+        // Check if the normal needs to be flipped
+        float3 currentNormal;
+        if (dot(normals[(int)closestObject], currentDirection) > 0)
+            currentNormal = normals[(int)closestObject] * -1;
+        else
+            currentNormal = normals[(int)closestObject];
+
+        float3 intersectionPosition = currentPosition + (currentDirection * bestDistance);
+        float3 illumination = (float3)(0.f, 0.f, 0.f);
+        for (int j = 0; j < lightAmount; j++)
+        {
+            if (castShadowRay(lightPos[j], intersectionPosition, p1, p2, p3, objAmount))
+            {
+                float distance = length(lightPos[j] - intersectionPosition);
+                float attenuation = 1.f / (distance * distance);
+                float nDotL = dot(currentNormal, normalize(lightPos[j] - intersectionPosition));
+
+                if (nDotL < 0)
+                    continue;
+                illumination += nDotL * attenuation * lightCol[i];
+            }
+        }
+
+        if (reflectivity[(int)closestObject] != 0) {
+            // TODO: Add reflectivity
+        }
+
+        if (refractionIndex[(int)closestObject] != 0)
+        {
+            // TODO: Add refractions
+        }
+
+        if (texId[(int)closestObject] != -1)
+        {
+            //TODO: Add textures
         }
     }
-    
-    if (reflectivity[(int)closestObject] != 0) {
-        // TODO: Add reflectivity
-    }
-    
-    if (refractionIndex[(int)closestObject] != 0)
-    {
-        // TODO: Add refractions
-    }
-
-    if (texId[(int)closestObject] != -1)
-    {
-        //TODO: Add textures
-    }
+   
     
     // TODO: Add reflectivity, refraction  and texture to color
    float3 currentColor = color[(int)closestObject] * illumination;

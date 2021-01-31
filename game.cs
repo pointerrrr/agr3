@@ -34,9 +34,10 @@ namespace Template {
 		// TODO: I dont think direction is needed here, as we need to calculate that for every pixel on the gpu.
 		// I think its better to send the corners of the screen towards to gpu instead of the direction
 		Vector3 direction;
+		Raytracer raytracer;
 		public void Init()
 		{
-			var raytracer = new Raytracer(1);
+			raytracer = new Raytracer(1);
 			int vCount = raytracer.Scene.Count, lCount = raytracer.Lights.Count;
 			float3[] p1t = new float3[vCount], p2t = new float3[vCount], p3t = new float3[vCount],
 				t1t = new float3[vCount], t2t = new float3[vCount], t3t = new float3[vCount], normal = new float3[vCount],colort = new float3[vCount],
@@ -74,7 +75,6 @@ namespace Template {
 			t2 = new OpenCLBuffer<float3>(ocl, t2t);
 			t3 = new OpenCLBuffer<float3>(ocl, t3t);
 			normals = new OpenCLBuffer<float3>(ocl, normal);
-			objAmount = new OpenCLBuffer<int>(ocl, scene.Count);
 			color = new OpenCLBuffer<float3>(ocl, colort);
 			isLight = new OpenCLBuffer<bool>(ocl, isLightt);
 			reflectivity = new OpenCLBuffer<float>(ocl, reflectivityt);
@@ -82,24 +82,23 @@ namespace Template {
 			texId = new OpenCLBuffer<int>(ocl, texIdt);
 			lPos = new OpenCLBuffer<float3>(ocl, lPost);
 			lCol = new OpenCLBuffer<float3>(ocl, lColt);
-			lightAmount = new OpenCLBuffer<int>(ocl, lights.Count);
 
-			kernel.SetArgument(4, p1);
-			kernel.SetArgument(5, p2);
-			kernel.SetArgument(6, p3);
-			kernel.SetArgument(7, t1);
-			kernel.SetArgument(8, t2);
-			kernel.SetArgument(9, t3);
-			kernel.SetArgument(10, normals);
-			kernel.SetArgument(11, objAmount);
-			kernel.SetArgument(12, color);
-			kernel.SetArgument(13, isLight);
-			kernel.SetArgument(14, reflectivity);
-			kernel.SetArgument(15, refractionIndex);
-			kernel.SetArgument(16, texId);
-			kernel.SetArgument(17, lPos);
-			kernel.SetArgument(18, lCol);
-			kernel.SetArgument(19, lightAmount);
+			kernel.SetArgument(7, p1);
+			kernel.SetArgument(8, p2);
+			kernel.SetArgument(9, p3);
+			kernel.SetArgument(10, t1);
+			kernel.SetArgument(11, t2);
+			kernel.SetArgument(12, t3);
+			kernel.SetArgument(13, normals);
+			kernel.SetArgument(14, scene.Count);
+			kernel.SetArgument(15, color);
+			kernel.SetArgument(16, isLight);
+			kernel.SetArgument(17, reflectivity);
+			kernel.SetArgument(18, refractionIndex);
+			kernel.SetArgument(19, texId);
+			kernel.SetArgument(20, lPos);
+			kernel.SetArgument(21, lCol);
+			kernel.SetArgument(22, lights.Count);
 		}
 
 		float3 VecToF3(Vector3 vec)
@@ -120,7 +119,10 @@ namespace Template {
 
 			kernel.SetArgument(1, fov);
 			kernel.SetArgument(2, VecToF3(startPos));
-			kernel.SetArgument(3, VecToF3(direction));
+			kernel.SetArgument(3, VecToF3(raytracer.Camera.Screen.TopLeft));
+			kernel.SetArgument(4, VecToF3(raytracer.Camera.Screen.TopRigth));
+			kernel.SetArgument(5, VecToF3(raytracer.Camera.Screen.BottomLeft));
+			kernel.SetArgument(6, VecToF3(raytracer.Camera.Screen.BottomRight));
 
 			t += 0.1f;
  			// execute kernel

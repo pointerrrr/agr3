@@ -31,8 +31,10 @@ namespace Template
             // texture taken from https://www.clay-and-paint.com/en/texture-plates/30-cernit-texture-plates.html
             var obj2 = ReadObj(objFile2, Matrix4.CreateScale(0.1f) * Matrix4.CreateTranslation(new Vector3(0, -1, 0)), new Texture("../../assets/square.jpg"));
 
-            Scene.AddRange(obj1);
-            Scene.AddRange(obj2);
+            //Scene.AddRange(obj1);
+           // Scene.AddRange(obj2);
+
+            Scene.Add(new Vertex(new Vector3(-3, 3, -8), new Vector3(-3, -3, -8), new Vector3(3, 3, -8)) { Material = new Material { Reflectivity = 1, color = new Vector3(1, 1, 1) } });
 
             //var bvh = new BVH(obj1);
 

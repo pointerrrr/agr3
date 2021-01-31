@@ -22,22 +22,24 @@ namespace Template {
 		OpenCLBuffer<int> buffer = new OpenCLBuffer<int>( ocl, 512 * 512 );
 		// create an OpenGL texture to which OpenCL can send data
 		OpenCLImage<int> image = new OpenCLImage<int>( ocl, 512, 512 );
-		OpenCLBuffer<float3> p1, p2, p3, t1, t2, t3, color, lPos, lCol;
+		OpenCLBuffer<float3> p1, p2, p3, t1, t2, t3, normals, color, lPos, lCol;
 		OpenCLBuffer<bool> isLight;
 		OpenCLBuffer<float> reflectivity, refractionIndex;
-		OpenCLBuffer<int> texId;
+		OpenCLBuffer<int> texId, objAmount, lightAmount;
 		public Surface screen;
 		Stopwatch timer = new Stopwatch();
 		float t = 21.5f;
 		float fov = 90;
-		Vector3 startPos;
+		Vector3 startPos, TopLeft, TopRigth, BottomLeft, BottomRight;
+		// TODO: I dont think direction is needed here, as we need to calculate that for every pixel on the gpu.
+		// I think its better to send the corners of the screen towards to gpu instead of the direction
 		Vector3 direction;
 		public void Init()
 		{
 			var raytracer = new Raytracer(1);
 			int vCount = raytracer.Scene.Count, lCount = raytracer.Lights.Count;
 			float3[] p1t = new float3[vCount], p2t = new float3[vCount], p3t = new float3[vCount],
-				t1t = new float3[vCount], t2t = new float3[vCount], t3t = new float3[vCount], colort = new float3[vCount],
+				t1t = new float3[vCount], t2t = new float3[vCount], t3t = new float3[vCount], normal = new float3[vCount],colort = new float3[vCount],
 				lPost = new float3[lCount], lColt = new float3[lCount];
 			bool[] isLightt = new bool[vCount];
 			float[] reflectivityt = new float[vCount], refractionIndext = new float[vCount];
@@ -51,6 +53,7 @@ namespace Template {
 				t1t[i] = VecToF3(scene[i].Tex1);
 				t2t[i] = VecToF3(scene[i].Tex2);
 				t3t[i] = VecToF3(scene[i].Tex3);
+				normal[i] = VecToF3(scene[i].Normal);
 				colort[i] = VecToF3(scene[i].Material.color);
 				reflectivityt[i] = scene[i].Material.Reflectivity;
 				refractionIndext[i] = scene[i].Material.RefractionIndex;
@@ -70,6 +73,8 @@ namespace Template {
 			t1 = new OpenCLBuffer<float3>(ocl, t1t);
 			t2 = new OpenCLBuffer<float3>(ocl, t2t);
 			t3 = new OpenCLBuffer<float3>(ocl, t3t);
+			normals = new OpenCLBuffer<float3>(ocl, normal);
+			objAmount = new OpenCLBuffer<int>(ocl, scene.Count);
 			color = new OpenCLBuffer<float3>(ocl, colort);
 			isLight = new OpenCLBuffer<bool>(ocl, isLightt);
 			reflectivity = new OpenCLBuffer<float>(ocl, reflectivityt);
@@ -77,6 +82,7 @@ namespace Template {
 			texId = new OpenCLBuffer<int>(ocl, texIdt);
 			lPos = new OpenCLBuffer<float3>(ocl, lPost);
 			lCol = new OpenCLBuffer<float3>(ocl, lColt);
+			lightAmount = new OpenCLBuffer<int>(ocl, lights.Count);
 
 			kernel.SetArgument(4, p1);
 			kernel.SetArgument(5, p2);
@@ -84,13 +90,16 @@ namespace Template {
 			kernel.SetArgument(7, t1);
 			kernel.SetArgument(8, t2);
 			kernel.SetArgument(9, t3);
-			kernel.SetArgument(10, color);
-			kernel.SetArgument(11, isLight);
-			kernel.SetArgument(12, reflectivity);
-			kernel.SetArgument(13, refractionIndex);
-			kernel.SetArgument(14, texId);
-			kernel.SetArgument(15, lPos);
-			kernel.SetArgument(16, lCol);
+			kernel.SetArgument(10, normals);
+			kernel.SetArgument(11, objAmount);
+			kernel.SetArgument(12, color);
+			kernel.SetArgument(13, isLight);
+			kernel.SetArgument(14, reflectivity);
+			kernel.SetArgument(15, refractionIndex);
+			kernel.SetArgument(16, texId);
+			kernel.SetArgument(17, lPos);
+			kernel.SetArgument(18, lCol);
+			kernel.SetArgument(19, lightAmount);
 		}
 
 		float3 VecToF3(Vector3 vec)

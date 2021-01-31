@@ -68,11 +68,11 @@ __kernel void device_function( __global int* a, float t )
     float currentDistance = -1;
     //HOW THE FUCK IS closestObject 0.0000000, When initialize it as FUCKING -1
     // THATS IT IM FUCKING DONE
-    int closestObject = -20;
+    // Well initializing it as a float atleast makes sure it is -1, but doesn't fix the rest of THIS GOD DAMN FUCKING SHIT PROGRAMN
+    float closestObject = -1.f;
     float bestDistance = MAXFLOAT;
     // TODO: currently we do not use the bvh so try to implement this
     // Determine closest object
-    printf(" %f ", closestObject);
     // Something something about unrolling
     for (int i = 0; i < objAmount; i++)
     {
@@ -91,10 +91,10 @@ __kernel void device_function( __global int* a, float t )
     
     // Check if the normal needs to be flipped
     float3 currentNormal;
-    if (dot(normals[closestObject], direction) > 0)
-        currentNormal = normals[closestObject] * -1;
+    if (dot(normals[(int)closestObject], direction) > 0)
+        currentNormal = normals[(int)closestObject] * -1;
     else
-        currentNormal = normals[closestObject];
+        currentNormal = normals[(int)closestObject];
 
     //For whatever FUCKING REASON is it now allowed to call the function below after the if statement
     // Somehow that if statement fucks it all up and i have no idea how the fuck its doing that
@@ -108,9 +108,9 @@ __kernel void device_function( __global int* a, float t )
     // Fuck fuck fuck fuck fuck, pls no. 
     // It migth have something to do with multithreading. Yeeeeeeeeeeeeeeeey, fuck my life.
 
-    write_imagef(a, (int2)(idx, idy), (float4)(0.f, 1.f, 1.f, 0.f));
+    write_imagef(a, (int2)(idx, idy), (float4)(0.f, 0.f, 1.f, 0.f));
     // TODO: Hit skybox
-    if (closestObject == -1)
+    if (closestObject == -1.f)
     {    
         return;
     }
@@ -131,22 +131,22 @@ __kernel void device_function( __global int* a, float t )
         }
     }
     
-    if (reflectivity[closestObject] != 0) {
+    if (reflectivity[(int)closestObject] != 0) {
         // TODO: Add reflectivity
     }
     
-    if (refractionIndex[closestObject] != 0)
+    if (refractionIndex[(int)closestObject] != 0)
     {
         // TODO: Add refractions
     }
 
-    if (texId[closestObject] != -1)
+    if (texId[(int)closestObject] != -1)
     {
         //TODO: Add textures
     }
 
     // TODO: Add reflectivity, refraction  and texture to color
-   float3 currentColor = color[closestObject] * illumination;
+   float3 currentColor = color[(int)closestObject] * illumination;
    //write_imagef(a, (int2)(idx, idy), (float4)(0.f, 1.f, 1.f, 0.f));
 
 

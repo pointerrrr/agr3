@@ -125,7 +125,7 @@ namespace Template
 			int bestPlatform = -1, bestDevice = -1;
 			for( int i = 0; i < ComputePlatform.Platforms.Count; i++ )
 			{
-				var platform = ComputePlatform.Platforms[0];
+				var platform = ComputePlatform.Platforms[i];
 				for( int j = 0; j < platform.Devices.Count; j++ )
 				{
 					var device = platform.Devices[j];
@@ -145,7 +145,7 @@ namespace Template
 			}
 			if (bestPlatform > -1)
 			{
-				var platform = ComputePlatform.Platforms[0];
+				var platform = ComputePlatform.Platforms[bestPlatform];
 				Console.Write( "initializing OpenCL... " + platform.Name + " (" + platform.Profile + ").\n" );
 				// try to enable gl interop functionality
 				try

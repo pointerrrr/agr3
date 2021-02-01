@@ -36,6 +36,7 @@ namespace Template
             rotation *= Matrix4.CreateRotationY(YRotation);
             vector = Transform(vector, rotation);
             Position += vector;
+            UpdateScreen();
         }
 
         public void UpdateScreen()

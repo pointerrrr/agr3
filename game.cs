@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Runtime.InteropServices;
 using Cloo;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL;
 using OpenTK;
+using OpenTK.Input;
 
 namespace Template {
 
@@ -34,18 +36,20 @@ namespace Template {
 		// TODO: I dont think direction is needed here, as we need to calculate that for every pixel on the gpu.
 		// I think its better to send the corners of the screen towards to gpu instead of the direction
 		Vector3 direction;
-		Raytracer raytracer;
+		Raytracer tracer;
+		private KeyboardState prevKeyState, currentKeyState;
 		public void Init()
 		{
-			raytracer = new Raytracer(1);
-			int vCount = raytracer.Scene.Count, lCount = raytracer.Lights.Count;
+			Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+			tracer = new Raytracer(1);
+			int vCount = tracer.Scene.Count, lCount = tracer.Lights.Count;
 			float3[] p1t = new float3[vCount], p2t = new float3[vCount], p3t = new float3[vCount],
 				t1t = new float3[vCount], t2t = new float3[vCount], t3t = new float3[vCount], normal = new float3[vCount],colort = new float3[vCount],
 				lPost = new float3[lCount], lColt = new float3[lCount];
 			bool[] isLightt = new bool[vCount];
 			float[] reflectivityt = new float[vCount], refractionIndext = new float[vCount];
 			int[] texIdt = new int[vCount];
-			var scene = raytracer.Scene;
+			var scene = tracer.Scene;
 			for(int i = 0; i < scene.Count; i++)
             {
 				p1t[i] = VecToF3(scene[i].Point1);
@@ -61,7 +65,7 @@ namespace Template {
 				texIdt[i] = -1;
 				isLightt[i] = false;
 			}
-			var lights = raytracer.Lights;
+			var lights = tracer.Lights;
 			for(int i = 0; i < lights.Count; i++)
             {
 				lPost[i] = VecToF3(lights[i].Position);
@@ -118,11 +122,12 @@ namespace Template {
 				kernel.SetArgument( 0, buffer );
 
 			kernel.SetArgument(1, fov);
-			kernel.SetArgument(2, VecToF3(startPos));
-			kernel.SetArgument(3, VecToF3(raytracer.Camera.Screen.TopLeft));
-			kernel.SetArgument(4, VecToF3(raytracer.Camera.Screen.TopRigth));
-			kernel.SetArgument(5, VecToF3(raytracer.Camera.Screen.BottomLeft));
-			kernel.SetArgument(6, VecToF3(raytracer.Camera.Screen.BottomRight));
+			kernel.SetArgument(2, VecToF3(tracer.Camera.Position));
+			
+			kernel.SetArgument(3, VecToF3(tracer.Camera.Screen.TopLeft));
+			kernel.SetArgument(4, VecToF3(tracer.Camera.Screen.TopRigth));
+			kernel.SetArgument(5, VecToF3(tracer.Camera.Screen.BottomLeft));
+			kernel.SetArgument(6, VecToF3(tracer.Camera.Screen.BottomRight));
 
 			t += 0.1f;
  			// execute kernel
@@ -164,6 +169,80 @@ namespace Template {
 				GL.TexCoord2( 0.0f, 0.0f ); GL.Vertex2( -1.0f,  1.0f );
 				GL.End();
 			}
+		}
+
+		public void Controls(KeyboardState key)
+		{
+			float movementDistance = 0.25f;
+			var camera = tracer.Camera;
+			currentKeyState = key;
+			bool keyPressed = false;
+			if (currentKeyState[Key.W])
+			{
+				camera.Reposition(new Vector3(0, 0, -movementDistance));
+				keyPressed = true;
+			}
+			if (currentKeyState[Key.A])
+			{
+				camera.Reposition(new Vector3(-movementDistance, 0, 0));
+				keyPressed = true;
+			}
+			if (currentKeyState[Key.S])
+			{
+				camera.Reposition(new Vector3(0, 0, movementDistance));
+				keyPressed = true;
+			}
+			if (currentKeyState[Key.D])
+			{
+				camera.Reposition(new Vector3(movementDistance, 0, 0));
+				keyPressed = true;
+			}
+			if (currentKeyState[Key.E])
+			{
+				camera.Reposition(new Vector3(0, movementDistance, 0));
+				keyPressed = true;
+			}
+			if (currentKeyState[Key.Q])
+			{
+				camera.Reposition(new Vector3(0, -movementDistance, 0));
+				keyPressed = true;
+			}
+
+			if (currentKeyState[Key.Left])
+			{
+				camera.YRotation += (float)Math.PI / 10f;
+				keyPressed = true;
+			}
+			if (currentKeyState[Key.Right])
+			{
+				camera.YRotation -= (float)Math.PI / 10f;
+				keyPressed = true;
+			}
+			if (currentKeyState[Key.Up])
+			{
+				camera.XRotation = (float)(camera.XRotation + Math.PI / 10f > Math.PI / 2f ? Math.PI / 2f : camera.XRotation + Math.PI / 10f);
+				keyPressed = true;
+			}
+			if (currentKeyState[Key.Down])
+			{
+				camera.XRotation = (float)(camera.XRotation + Math.PI / 10f < -Math.PI / 2f ? -Math.PI / 2f : camera.XRotation - Math.PI / 10f);
+				keyPressed = true;
+			}
+
+			if (currentKeyState[Key.BracketLeft])
+			{
+				camera.FOV = tracer.Camera.FOV + 5 > 160 ? 160 : camera.FOV + 5;
+				camera.UpdateScreen();
+				keyPressed = true;
+			}
+			if (currentKeyState[Key.BracketRight])
+			{
+				camera.FOV = tracer.Camera.FOV - 5 < 20 ? 20 : camera.FOV - 5;
+				camera.UpdateScreen();
+				keyPressed = true;
+			}
+			prevKeyState = key;
+
 		}
 	}
 

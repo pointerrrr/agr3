@@ -43,15 +43,19 @@ float Intersect(float3 pos, float3 dir, float3 p1, float3 p2, float3 p3)
 
 bool castShadowRay(float3 lightPos, float3 intersectionPosition, __global float3* p1, __global float3* p2, __global float3* p3, int objAmount )
 {
+    float Epsilon = 0.001f;
     float distToLight = length(lightPos - intersectionPosition);
     float3 rayDirection = normalize(lightPos - intersectionPosition);
     for (int i = 0; i < objAmount; i++)
     {
-        float currentDistance = Intersect(intersectionPosition, rayDirection, p1[i], p2[i], p3[i]);
+        float currentDistance = Intersect(intersectionPosition + rayDirection * Epsilon, rayDirection, p1[i], p2[i], p3[i]);
         if (isnan(currentDistance) == 1 || isinf(currentDistance) == 1)
             continue;
-        if(currentDistance < distToLight && currentDistance > 0.0001f)
+        if (currentDistance < distToLight && currentDistance > 0.0001f)
+        {
+            ///printf("%f\n", currentDistance);
             return false;
+        }
     }
     return true;
 }
@@ -65,6 +69,7 @@ __kernel void device_function( write_only image2d_t a, float fov, float3 positio
 __kernel void device_function( __global int* a, float t )
 #endif
 {
+    float Epsilon = 0.001f;
 	// adapted from inigo quilez - iq/2013
 	int idx = get_global_id( 0 );
 	int idy = get_global_id( 1 );
@@ -83,15 +88,17 @@ __kernel void device_function( __global int* a, float t )
     float3 reflectionColor = (float3)(0.f, 0.f, 0.f);
     float3 refractionColor = (float3)(0.f, 0.f, 0.f);
 
-    rayLocation[0] = pixelLocation - position;
+    rayLocation[0] = position;
     
-    rayDirection[0] = normalize(ray);
+    rayDirection[0] = normalize(pixelLocation - position);
+
+    float3 currentColor = (float3)(0.f);
 
     // Recursion is not allowed so my idea was to use an array or a queue to put the rays in it
     // I started working on an array but a down side is that arrays of flexible size are not allowed. 
     for (int i = 0; i < 1024; i++) {
         // no ray present
-        if (length(raydirection[i]) <= 0)
+        if (length(rayDirection[i]) <= 0)
             continue;
 
         // Get current position and ray direction
@@ -113,7 +120,7 @@ __kernel void device_function( __global int* a, float t )
                 continue;
             if (currentDistance < bestDistance) {
                 bestDistance = currentDistance;
-                closestObject = i;
+                closestObject = j;
 
             }
         }
@@ -122,6 +129,8 @@ __kernel void device_function( __global int* a, float t )
         if (closestObject < 0)
             continue;
 
+        //currentColor = (float3)(1.f/bestDistance);
+        //break;
         // Check if the normal needs to be flipped
         float3 currentNormal;
         if (dot(normals[(int)closestObject], currentDirection) > 0)
@@ -129,7 +138,7 @@ __kernel void device_function( __global int* a, float t )
         else
             currentNormal = normals[(int)closestObject];
 
-        float3 intersectionPosition = currentPosition + (currentDirection * bestDistance);
+        float3 intersectionPosition = currentPosition - currentDirection * Epsilon + (currentDirection * bestDistance);
         float3 illumination = (float3)(0.f, 0.f, 0.f);
         for (int j = 0; j < lightAmount; j++)
         {
@@ -138,12 +147,18 @@ __kernel void device_function( __global int* a, float t )
                 float distance = length(lightPos[j] - intersectionPosition);
                 float attenuation = 1.f / (distance * distance);
                 float nDotL = dot(currentNormal, normalize(lightPos[j] - intersectionPosition));
-
+                printf("%f\n", nDotL);
                 if (nDotL < 0)
                     continue;
-                illumination += nDotL * attenuation * lightCol[i];
+                illumination += nDotL * attenuation * lightCol[j];
+                
+                printf("%f\n", attenuation);
+                printf("%f\n", lightCol[j].x);
             }
         }
+        
+        currentColor += color[closestObject] * illumination;// *0.9f + 0.1f * color[(int)closestObject];
+        
 
         if (reflectivity[(int)closestObject] != 0) {
             // TODO: Add reflectivity
@@ -158,11 +173,19 @@ __kernel void device_function( __global int* a, float t )
         {
             //TODO: Add textures
         }
+        
     }
    
     
     // TODO: Add reflectivity, refraction  and texture to color
-   float3 currentColor = color[(int)closestObject] * illumination;
+   
+    if (currentColor.x > 1)
+        currentColor.x = 1;
+    if (currentColor.y > 1)
+        currentColor.y = 1;
+    if (currentColor.z > 1)
+        currentColor.z = 1;
+
    write_imagef(a, (int2)(idx, idy), (float4)(currentColor.x, currentColor.y, currentColor.z, 0.f));
    //write_imagef(a, (int2)(idx, idy), (float4)(0.f, 1.f, 1.f, 0.f));
 

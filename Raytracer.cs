@@ -37,7 +37,7 @@ namespace Template
 
 
 
-            Scene.AddRange(obj1);
+            //Scene.AddRange(obj1);
             //Scene.AddRange(obj2);
 
             //Scene.Add(new Vertex(new Vector3(-3, 3, -8), new Vector3(-3, -3, -8), new Vector3(3, 3, -8)) { Material = new Material { Reflectivity = 1, color = new Vector3(1, 1, 1) } });

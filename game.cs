@@ -43,7 +43,7 @@ namespace Template {
 			Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
 			tracer = new Raytracer(1);
 			
-			int vCount = tracer.Scene.Count, lCount = tracer.Lights.Count;
+			int vCount = tracer.BVHs[0].Primitives.Count, lCount = tracer.Lights.Count;
 			float3[] p1t = new float3[vCount], p2t = new float3[vCount], p3t = new float3[vCount],
 				t1t = new float3[vCount], t2t = new float3[vCount], t3t = new float3[vCount], normal = new float3[vCount],colort = new float3[vCount],
 				lPost = new float3[lCount], lColt = new float3[lCount];
@@ -118,7 +118,7 @@ namespace Template {
 						texIdt[vertexesSeen] = -1;
 						vertexesSeen++;
 					}
-					vertexEnd[index] = vertexesSeen;
+					vertexEnd[index] = vertexesSeen - vertexStart[index];
                 }
 				index++;
 				if (bvh.Left != null)

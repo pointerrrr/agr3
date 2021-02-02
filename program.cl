@@ -156,13 +156,13 @@ __kernel void device_function( __global int* a, float t )
                 float distance = length(lightPos[j] - intersectionPosition);
                 float attenuation = 1.f / (distance * distance);
                 float nDotL = dot(currentNormal, normalize(lightPos[j] - intersectionPosition));
-                printf("%f\n", nDotL);
+                //printf("%f\n", nDotL);
                 if (nDotL < 0)
                     continue;
                 illumination += nDotL * attenuation * lightCol[j];
                 
-                printf("%f\n", attenuation);
-                printf("%f\n", lightCol[j].x);
+                //printf("%f\n", attenuation);
+                //printf("%f\n", lightCol[j].x);
             }
         }
         
@@ -183,7 +183,41 @@ __kernel void device_function( __global int* a, float t )
 
         else if (refractionIndex[closestObject] != 0)
         {
-            // TODO: Add refractions
+            float refractionCurrentMaterial = 1.00027717f;
+            float refractionIndexNextMaterial = refractionIndex[closestObject];
+            
+            float thetaOne = min(1.f, max(dot(currentDirection, currentNormal), -1.f));
+
+            if (thetaOne < 0)
+                thetaOne *= -1;
+            else
+            {
+                currentNormal *= -1;
+                float temp = refractionCurrentMaterial;
+                refractionCurrentMaterial = refractionIndexNextMaterial;
+                refractionIndexNextMaterial = temp;
+            }
+
+            float snell = refractionCurrentMaterial / refractionIndexNextMaterial;
+
+            float internalReflection = 1 - snell * snell * (1 - thetaOne * thetaOne);
+
+            if (internalReflection < 0)
+            {
+                if (i + 1 >= maxDepth)
+                    break;
+                rayLocation[i + 1] = intersectionPosition;
+                rayDirection[i + 1] = reflect(currentDirection, currentNormal);
+
+            }
+            else
+            {
+                refractionColor = (float3)(1.f);// TraceRay(new Ray(){ direction = Normalize(snell * ray.direction + (snell * thetaOne - (float)Math.Sqrt(internalReflection)) * currentNormal), position = nearest.Position + ray.direction * 0.002f }, threadId, recursionDepth++);
+                if (i + 1 >= maxDepth)
+                    break;
+                rayLocation[i + 1] = intersectionPosition;
+                rayDirection[i + 1] = normalize(snell * currentDirection + (snell * thetaOne - sqrt(internalReflection)) * currentNormal);
+            }
         }
         else
         {

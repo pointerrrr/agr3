@@ -42,6 +42,7 @@ namespace Template {
 		{
 			Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
 			tracer = new Raytracer(1);
+			
 			int vCount = tracer.Scene.Count, lCount = tracer.Lights.Count;
 			float3[] p1t = new float3[vCount], p2t = new float3[vCount], p3t = new float3[vCount],
 				t1t = new float3[vCount], t2t = new float3[vCount], t3t = new float3[vCount], normal = new float3[vCount],colort = new float3[vCount],
@@ -87,6 +88,13 @@ namespace Template {
 			lPos = new OpenCLBuffer<float3>(ocl, lPost);
 			lCol = new OpenCLBuffer<float3>(ocl, lColt);
 
+			kernel.SetArgument(1, tracer.Camera.FOV);
+			kernel.SetArgument(2, VecToF3(tracer.Camera.Position));
+			kernel.SetArgument(3, VecToF3(tracer.Camera.Screen.TopLeft));
+			kernel.SetArgument(4, VecToF3(tracer.Camera.Screen.TopRigth));
+			kernel.SetArgument(5, VecToF3(tracer.Camera.Screen.BottomLeft));
+			kernel.SetArgument(6, VecToF3(tracer.Camera.Screen.BottomRight));
+
 			kernel.SetArgument(7, p1);
 			kernel.SetArgument(8, p2);
 			kernel.SetArgument(9, p3);
@@ -121,13 +129,7 @@ namespace Template {
 			else
 				kernel.SetArgument( 0, buffer );
 
-			kernel.SetArgument(1, fov);
-			kernel.SetArgument(2, VecToF3(tracer.Camera.Position));
 			
-			kernel.SetArgument(3, VecToF3(tracer.Camera.Screen.TopLeft));
-			kernel.SetArgument(4, VecToF3(tracer.Camera.Screen.TopRigth));
-			kernel.SetArgument(5, VecToF3(tracer.Camera.Screen.BottomLeft));
-			kernel.SetArgument(6, VecToF3(tracer.Camera.Screen.BottomRight));
 
 			t += 0.1f;
  			// execute kernel
@@ -242,6 +244,21 @@ namespace Template {
 				keyPressed = true;
 			}
 			prevKeyState = key;
+
+			if(keyPressed)
+            {
+				Matrix4 rotation = Matrix4.CreateRotationX(camera.XRotation);
+				rotation *= Matrix4.CreateRotationY(camera.YRotation);
+				Matrix4 translation = Matrix4.CreateTranslation(camera.Position);
+
+				kernel.SetArgument(1, camera.FOV);
+				kernel.SetArgument(2, VecToF3(camera.Position));
+
+				kernel.SetArgument(3, VecToF3(Vector3.Transform(camera.Screen.TopLeft, rotation * translation)));
+				kernel.SetArgument(4, VecToF3(Vector3.Transform(camera.Screen.TopRigth, rotation * translation)));
+				kernel.SetArgument(5, VecToF3(Vector3.Transform(camera.Screen.BottomLeft, rotation * translation)));
+				kernel.SetArgument(6, VecToF3(Vector3.Transform(camera.Screen.BottomRight, rotation * translation)));
+			}
 
 		}
 	}

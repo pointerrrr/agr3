@@ -61,6 +61,23 @@ bool castShadowRay(float3 lightPos, float3 intersectionPosition, __global float3
     return true;
 }
 
+bool IntersectAABB(float3 minC, float3 maxC, float3 position, float3 direction)
+{
+    float tx1 = (minC.x - position.x) / direction.x;
+    float tx2 = (maxC.x - position.x) / direction.x;
+    float tmin = min(tx1, tx2);
+    float tmax = max(tx1, tx2);
+    float ty1 = (minC.y - position.y) / direction.y;
+    float ty2 = (maxC.y - position.y) / direction.y;
+    tmin = max(tmin, min(ty1, ty2));
+    tmax = min(tmax, max(ty1, ty2));
+    float tz1 = (minC.z - position.z) / direction.z;
+    float tz2 = (maxC.z - position.z) / direction.z;
+    tmin = max(tmin, min(tz1, tz2));
+    tmax = min(tmax, max(tz1, tz2));
+    return tmax >= tmin;
+}
+
 float3 reflect(float3 rayDirection, float3 normal)
 {
     return rayDirection - 2.f * dot(rayDirection, normal) * normal;

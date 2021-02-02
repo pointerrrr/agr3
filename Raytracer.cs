@@ -13,6 +13,7 @@ namespace Template
 {
     public class Raytracer : Tracer
     {
+        public List<BVH> BVHs = new List<BVH>();
         public Raytracer(int numThreads, int height = 512, int width = 512) : base(numThreads, height, width)
         {
             MakeScene();
@@ -31,14 +32,18 @@ namespace Template
             // texture taken from https://www.clay-and-paint.com/en/texture-plates/30-cernit-texture-plates.html
             var obj2 = ReadObj(objFile2, Matrix4.CreateScale(0.1f) * Matrix4.CreateTranslation(new Vector3(0, -1, 0)), new Texture("../../assets/square.jpg"));
 
+
+
             Scene.AddRange(obj1);
             //Scene.AddRange(obj2);
 
             //Scene.Add(new Vertex(new Vector3(-3, 3, -8), new Vector3(-3, -3, -8), new Vector3(3, 3, -8)) { Material = new Material { Reflectivity = 1, color = new Vector3(1, 1, 1) } });
 
-            //var bvh = new BVH(obj1);
+            var bvh = new BVH(obj1.Select(x => x as Primitive).ToList());
 
-            //bvh.Primitives.AddRange(obj2);
+            bvh.Construct();
+
+            BVHs.Add(bvh);
 
             //Scene.Add(new Vertex(new Vector3(-3, 3, 8), new Vector3(-3, -3, 8), new Vector3(3, 3, 8)) { Material = new Material { Reflectivity = 0f, color = new Vector3(1, 1, 1) } });
             Scene.Add(new Vertex(new Vector3(3, -3, -1), new Vector3(3, 3, -1), new Vector3(-3, 3, -1)) { Material = new Material { RefractionIndex = 1.3f, color = new Vector3(1, 1, 1) } });

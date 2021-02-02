@@ -13,7 +13,7 @@ namespace Template
     public class BVH : Primitive
     {
         public bool IsLeafNode = false;
-        public static int BinCount = 16, MaxSplitDepth = 16;
+        public static int BinCount = 16, MaxSplitDepth = 8;
         public int CurrentSplitDepth = 0;
         public float SplitCost = float.PositiveInfinity;
         public List<Primitive> Primitives;
@@ -102,7 +102,7 @@ namespace Template
             var stopwatch = new Stopwatch();
             Console.WriteLine("Starting BVH construction with " + Primitives.Count + " primitives");
             stopwatch.Start();
-            MaxSplitDepth = (int) Math.Ceiling(Math.Log(Primitives.Count, 2));
+            //MaxSplitDepth = (int) Math.Ceiling(Math.Log(Primitives.Count, 2));
             BoundingBox = GetBoundingVolume(Primitives);
             SubDivide();
             stopwatch.Stop();
@@ -111,7 +111,7 @@ namespace Template
 
         private void SubDivide()
         {
-            if(CurrentSplitDepth > MaxSplitDepth || Primitives.Count <= 4)
+            if(CurrentSplitDepth > MaxSplitDepth)
             {
                 IsLeafNode = true;
                 return;
@@ -277,34 +277,28 @@ namespace Template
                 }
             }
 
-            if (bestSplitCost < SplitCost)
+            
+            switch(plane)
             {
-                switch(plane)
-                {
-                    case SplitPlane.X:
-                        boundingLeft = (new Vector3(bbMin.X, bbMin.Y, bbMin.Z), new Vector3(bestFurthestRight, bbMax.Y, bbMax.Z));
-                        boundingRight = (new Vector3(bestFurthestLeft, bbMin.Y, bbMin.Z), new Vector3(bbMax.X, bbMax.Y, bbMax.Z));
-                        break;
-                    case SplitPlane.Y:
-                        boundingLeft = (new Vector3(bbMin.X, bbMin.Y, bbMin.Z), new Vector3(bbMax.X, bestFurthestRight, bbMax.Z));
-                        boundingRight = (new Vector3(bbMin.X, bestFurthestLeft, bbMin.Z), new Vector3(bbMax.X, bbMax.Y, bbMax.Z));
-                        break;
-                    case SplitPlane.Z:
-                        boundingLeft = (new Vector3(bbMin.X, bbMin.Y, bbMin.Z), new Vector3(bbMax.X, bbMax.Y, bestFurthestRight));
-                        boundingRight = (new Vector3(bbMin.X, bbMin.Y, bestFurthestLeft), new Vector3(bbMax.X, bbMax.Y, bbMax.Z));
-                        break;
-                }
+                case SplitPlane.X:
+                    boundingLeft = (new Vector3(bbMin.X, bbMin.Y, bbMin.Z), new Vector3(bestFurthestRight, bbMax.Y, bbMax.Z));
+                    boundingRight = (new Vector3(bestFurthestLeft, bbMin.Y, bbMin.Z), new Vector3(bbMax.X, bbMax.Y, bbMax.Z));
+                    break;
+                case SplitPlane.Y:
+                    boundingLeft = (new Vector3(bbMin.X, bbMin.Y, bbMin.Z), new Vector3(bbMax.X, bestFurthestRight, bbMax.Z));
+                    boundingRight = (new Vector3(bbMin.X, bestFurthestLeft, bbMin.Z), new Vector3(bbMax.X, bbMax.Y, bbMax.Z));
+                    break;
+                case SplitPlane.Z:
+                    boundingLeft = (new Vector3(bbMin.X, bbMin.Y, bbMin.Z), new Vector3(bbMax.X, bbMax.Y, bestFurthestRight));
+                    boundingRight = (new Vector3(bbMin.X, bbMin.Y, bestFurthestLeft), new Vector3(bbMax.X, bbMax.Y, bbMax.Z));
+                    break;
+            }
                 
-                Left = new BVH(bestLeft) { SplitCost = bestCostLeft, BoundingBox = boundingLeft, CurrentSplitDepth = CurrentSplitDepth + 1 };
-                Right = new BVH(bestRight) { SplitCost = bestCostRight, BoundingBox = boundingRight, CurrentSplitDepth = CurrentSplitDepth + 1};
+            Left = new BVH(bestLeft) { SplitCost = bestCostLeft, BoundingBox = boundingLeft, CurrentSplitDepth = CurrentSplitDepth + 1 };
+            Right = new BVH(bestRight) { SplitCost = bestCostRight, BoundingBox = boundingRight, CurrentSplitDepth = CurrentSplitDepth + 1};
 
-                Left.SubDivide();
-                Right.SubDivide();
-            }
-            else
-            {
-                IsLeafNode = true;
-            }
+            Left.SubDivide();
+            Right.SubDivide();            
         }
 
         private float CalculateCosts(List<Primitive> primitives)

@@ -111,6 +111,27 @@ namespace Template {
 			kernel.SetArgument(20, lPos);
 			kernel.SetArgument(21, lCol);
 			kernel.SetArgument(22, lights.Count);
+
+			float3[] bbMin = new float3[1023], bbMax = new float3[1023];
+
+			var queue = new Queue<BVH>();
+			queue.Enqueue(tracer.BVHs[0]);
+			int index = 0;
+			while(queue.Count > 0)
+            {
+				var bvh = queue.Dequeue();
+				bbMin[index] = VecToF3(bvh.BoundingBox.Item1);
+				bbMax[index] = VecToF3(bvh.BoundingBox.Item2);
+				index++;
+				if(bvh.Left != null)
+					queue.Enqueue(bvh.Left);
+				if(bvh.Right != null)
+					queue.Enqueue(bvh.Right);
+			}
+			for (int i = 0; i < 1023; i++)
+				Console.WriteLine(bbMin[i].ToString() + " " + bbMax[i].ToString());
+			kernel.SetArgument(23, new OpenCLBuffer<float3>(ocl, bbMin));
+			kernel.SetArgument(24, new OpenCLBuffer<float3>(ocl, bbMax));
 		}
 
 		float3 VecToF3(Vector3 vec)

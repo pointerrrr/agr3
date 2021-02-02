@@ -163,7 +163,12 @@ namespace Template
 			get { unsafe { fixed( float* p = data) { return p[idx]; } } }
 			set { unsafe { fixed( float* p = data) { p[idx] = value; } } }
 		}
-	}
+
+        public override string ToString()
+        {
+			return x.ToString() + ", " + y.ToString() + ", " + z.ToString();
+        }
+    }
 	// float4
 	// Basic vector class, designed to be mostly compatible with OpenCL.
 	[StructLayout(LayoutKind.Explicit)]

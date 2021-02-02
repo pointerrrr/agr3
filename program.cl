@@ -1,7 +1,9 @@
 #define GLINTEROP
+#define maxDepth 10
+#define Epsilon 0.001f
+
 float Intersect(float3 pos, float3 dir, float3 p1, float3 p2, float3 p3)
 {
-    float Epsilon = 0.0001f;
     float3 edge1, edge2, h, s, q;
     float a, f, u, v;
 
@@ -43,7 +45,6 @@ float Intersect(float3 pos, float3 dir, float3 p1, float3 p2, float3 p3)
 
 bool castShadowRay(float3 lightPos, float3 intersectionPosition, __global float3* p1, __global float3* p2, __global float3* p3, int objAmount )
 {
-    float Epsilon = 0.001f;
     float distToLight = length(lightPos - intersectionPosition);
     float3 rayDirection = normalize(lightPos - intersectionPosition);
     for (int i = 0; i < objAmount; i++)
@@ -60,6 +61,11 @@ bool castShadowRay(float3 lightPos, float3 intersectionPosition, __global float3
     return true;
 }
 
+float3 reflect(float3 rayDirection, float3 normal)
+{
+    return rayDirection - 2.f * dot(rayDirection, normal) * normal;
+}
+
 
 #ifdef GLINTEROP
 __kernel void device_function( write_only image2d_t a, float fov, float3 position, float3 leftUpperCorner, float3 rightUpperCorner, float3 leftLowerCorner, float3 rightLowerCorner, __global float3* p1, __global float3* p2, __global float3* p3, 
@@ -69,8 +75,7 @@ __kernel void device_function( write_only image2d_t a, float fov, float3 positio
 __kernel void device_function( __global int* a, float t )
 #endif
 {
-    float Epsilon = 0.001f;
-	// adapted from inigo quilez - iq/2013
+    // adapted from inigo quilez - iq/2013
 	int idx = get_global_id( 0 );
 	int idy = get_global_id( 1 );
 	int id = idx + 512 * idy;
@@ -78,9 +83,13 @@ __kernel void device_function( __global int* a, float t )
 	float2 fragCoord = (float2)( (float)idx, (float)idy ), resolution = (float2)( 512, 512 );
 	float3 col = (float3)( 1.f, 2.f, 3.f );
 
-    float3 rayLocation[1024];
-    float3 rayDirection[1024];
+    
 
+    float3 rayLocation[maxDepth] = { 0 };
+    float3 rayDirection[maxDepth] = { 0 };
+
+    float percentLeft = 1.f;
+    float oldLeft = 0.f;
     float3 horizontal = rightUpperCorner - leftUpperCorner;
     float3 vertical = leftLowerCorner - leftUpperCorner;
     float3 pixelLocation = leftUpperCorner + (horizontal / 512) * idx + (vertical / 512) * idy;
@@ -96,7 +105,7 @@ __kernel void device_function( __global int* a, float t )
 
     // Recursion is not allowed so my idea was to use an array or a queue to put the rays in it
     // I started working on an array but a down side is that arrays of flexible size are not allowed. 
-    for (int i = 0; i < 1024; i++) {
+    for (int i = 0; i < maxDepth; i++) {
         // no ray present
         if (length(rayDirection[i]) <= 0)
             continue;
@@ -157,19 +166,31 @@ __kernel void device_function( __global int* a, float t )
             }
         }
         
-        currentColor += color[closestObject] * illumination;// *0.9f + 0.1f * color[(int)closestObject];
+        // *0.9f + 0.1f * color[(int)closestObject];
         
 
-        if (reflectivity[(int)closestObject] != 0) {
-            // TODO: Add reflectivity
+        if (reflectivity[closestObject] > 0)
+        {
+            if (i + 1 >= maxDepth)
+                break;
+            rayLocation[i + 1] = intersectionPosition;
+            rayDirection[i + 1] = reflect(rayDirection[i], currentNormal);
+            oldLeft = percentLeft;
+            percentLeft *= reflectivity[closestObject];
+            currentColor += (1.f - reflectivity[closestObject]) * color[closestObject] * (oldLeft - percentLeft);
+            
         }
 
-        if (refractionIndex[(int)closestObject] != 0)
+        else if (refractionIndex[closestObject] != 0)
         {
             // TODO: Add refractions
         }
+        else
+        {
+            currentColor += color[closestObject] * illumination * percentLeft;
+        }
 
-        if (texId[(int)closestObject] != -1)
+        if (texId[closestObject] != -1)
         {
             //TODO: Add textures
         }

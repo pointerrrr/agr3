@@ -111,7 +111,8 @@ __kernel void device_function( __global int* a, float t )
 	float2 fragCoord = (float2)( (float)idx, (float)idy ), resolution = (float2)( 512, 512 );
 	float3 col = (float3)( 1.f, 2.f, 3.f );
 
-    
+    int test = 1;
+    int test2 = test / 2;
 
     float3 rayLocation[maxDepth] = { 0 };
     float3 rayDirection[maxDepth] = { 0 };
@@ -169,22 +170,33 @@ __kernel void device_function( __global int* a, float t )
                 case 1 :
                     {
                         //Back in root, finished checking
-                        if(current == 0)
+                        if(current <= 0)
                         {
+                            
                             run = false;
                             break;
                         }
                         // Need to check sibling
-                        if (current == closestBoundingVolume(bbMin[current], bbMin[current + 1], bbMax[current], bbMax[current + 1], currentPosition, current))
+                        int closeId;
+                        if (current & 1 == 0)
+                            closeId = current - 1;
+                        else
+                            closeId = current;
+                        if (current == closestBoundingVolume(bbMin[closeId], bbMin[closeId + 1], bbMax[closeId], bbMax[closeId + 1], currentPosition, closeId))
                         {
                             // determine new current
-                            current = current + 1;
+                            if (current & 1 == 0)
+                                current = current - 1;
+                            else
+                                current = current + 1;
+
                             state = 2;
                         }
                         // Go back to parent
                         else
                         {
-                            current = current / 2;
+                          
+                            current = (current + 1) / 2 - 1;
                             state = 1;
                         }
                         break;
@@ -194,12 +206,12 @@ __kernel void device_function( __global int* a, float t )
                     {
                         if (!IntersectAABB(bbMin[current], bbMax[current], currentPosition, currentDirection))
                         {
-                            current = current / 2;
+                            current = (current + 1) / 2 - 1;
                             state = 1;
                         }
-                        else if (current >= 512) 
+                        else if (current > 512) 
                         {
-                            if (vEnd[current] != 0) 
+                            if (vEnd[current] > 0) 
                             {
                                 bestDistance = MAXFLOAT;
                                 for (int j = vStart[current]; j < vStart[current] + vEnd[current]; j++)
@@ -217,12 +229,12 @@ __kernel void device_function( __global int* a, float t )
                                 if (closestObject != -1)
                                     run = false;
                             }
-                            current = current / 2;
+                            current = (current + 1) / 2 - 1;
                             state = 1;
                         }
                         else
                         {
-                            current = closestBoundingVolume(bbMin[current * 2], bbMin[current * 2 + 1], bbMax[current * 2], bbMax[current * 2 + 1], currentPosition, current * 2);
+                            current = closestBoundingVolume(bbMin[current * 2 + 1], bbMin[current * 2 + 2], bbMax[current * 2 + 1], bbMax[current * 2 + 2], currentPosition, current * 2 + 1);
                             state = 3;
                         }
                         break;
@@ -231,12 +243,15 @@ __kernel void device_function( __global int* a, float t )
                     {
                         if (!IntersectAABB(bbMin[current], bbMax[current], currentPosition, currentDirection)) 
                         {
-                            current = current + 1;
+                            if (current & 1 == 0)
+                                current = current - 1;
+                            else
+                                current = current + 1;
                             state = 2;
                         }
-                        else if (current >= 512) 
+                        else if (current > 512) 
                         {
-                            if (vEnd[current] != 0)
+                            if (vEnd[current] > 0)
                             {
                                 bestDistance = MAXFLOAT;
                                 for (int j = vStart[current]; j < vStart[current] + vEnd[current]; j++)
@@ -250,16 +265,22 @@ __kernel void device_function( __global int* a, float t )
                                         closestObject = j;
 
                                     }
+                                    
                                 }
                                 if (closestObject != -1)
                                     run = false;
+                                printf("%f %f %f\n", (float)vStart[current], (float)vEnd[current], (float)current);
+                                
                             }
-                            current = current + 1;
-                            state = 1;
+                            if (current & 1 == 0)
+                                current = current - 1;
+                            else
+                                current = current + 1;
+                            state = 2;
                         }
                         else
                         {
-                            current = closestBoundingVolume(bbMin[current * 2], bbMin[current * 2 + 1], bbMax[current * 2], bbMax[current * 2 + 1], currentPosition, current * 2);
+                            current = closestBoundingVolume(bbMin[current * 2 + 1], bbMin[current * 2 + 2], bbMax[current * 2 + 1], bbMax[current * 2 + 2], currentPosition, current * 2 + 1);
                             state = 3;
                         }
                         break;
@@ -268,7 +289,7 @@ __kernel void device_function( __global int* a, float t )
                 }
             }
         }
-
+       
 
         /*for (int j = 0; j < objAmount; j++)
         {

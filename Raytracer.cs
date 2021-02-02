@@ -31,7 +31,7 @@ namespace Template
             // texture taken from https://www.clay-and-paint.com/en/texture-plates/30-cernit-texture-plates.html
             var obj2 = ReadObj(objFile2, Matrix4.CreateScale(0.1f) * Matrix4.CreateTranslation(new Vector3(0, -1, 0)), new Texture("../../assets/square.jpg"));
 
-            //Scene.AddRange(obj1);
+            Scene.AddRange(obj1);
             //Scene.AddRange(obj2);
 
             //Scene.Add(new Vertex(new Vector3(-3, 3, -8), new Vector3(-3, -3, -8), new Vector3(3, 3, -8)) { Material = new Material { Reflectivity = 1, color = new Vector3(1, 1, 1) } });
@@ -40,9 +40,9 @@ namespace Template
 
             //bvh.Primitives.AddRange(obj2);
 
-            Scene.Add(new Vertex(new Vector3(-3, 3, 8), new Vector3(-3, -3, 8), new Vector3(3, 3, 8)) { Material = new Material { Reflectivity = 0f, color = new Vector3(1, 1, 1) } });
-            Scene.Add(new Vertex(new Vector3(3, -3, -8), new Vector3(3, 3, -8), new Vector3(-3, 3, -8)) { Material = new Material { Reflectivity = 0.5f, color = new Vector3(1, 1, 1) } });
-            Scene.Add(new Vertex(new Vector3(3, -3, -8), new Vector3(-3, -3, -8), new Vector3(-3, 3, -8)) { Material = new Material { Reflectivity = 0.5f, color = new Vector3(1, 1, 1) } });
+            //Scene.Add(new Vertex(new Vector3(-3, 3, 8), new Vector3(-3, -3, 8), new Vector3(3, 3, 8)) { Material = new Material { Reflectivity = 0f, color = new Vector3(1, 1, 1) } });
+            Scene.Add(new Vertex(new Vector3(3, -3, -1), new Vector3(3, 3, -1), new Vector3(-3, 3, -1)) { Material = new Material { RefractionIndex = 1.3f, color = new Vector3(1, 1, 1) } });
+            Scene.Add(new Vertex(new Vector3(3, -3, -1), new Vector3(-3, -3, -1), new Vector3(-3, 3, -1)) { Material = new Material { RefractionIndex = 1.3f, color = new Vector3(1, 1, 1) } });
 
             //bvh.Primitives.Add(new Sphere(new Vector3(-3, 2, 5), 1.3f) { Material = new Material { color = new Vector3(0.4f, 0.3f, 0.3f), RefractionIndex = 1.453f } });
 

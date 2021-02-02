@@ -212,22 +212,22 @@ namespace Template {
 
 			if (currentKeyState[Key.Left])
 			{
-				camera.YRotation += (float)Math.PI / 10f;
+				camera.YRotation += (float)Math.PI / 36f;
 				keyPressed = true;
 			}
 			if (currentKeyState[Key.Right])
 			{
-				camera.YRotation -= (float)Math.PI / 10f;
+				camera.YRotation -= (float)Math.PI / 36f;
 				keyPressed = true;
 			}
 			if (currentKeyState[Key.Up])
 			{
-				camera.XRotation = (float)(camera.XRotation + Math.PI / 10f > Math.PI / 2f ? Math.PI / 2f : camera.XRotation + Math.PI / 10f);
+				camera.XRotation = (float)(camera.XRotation + Math.PI / 36f > Math.PI / 2f ? Math.PI / 2f : camera.XRotation + Math.PI / 36f);
 				keyPressed = true;
 			}
 			if (currentKeyState[Key.Down])
 			{
-				camera.XRotation = (float)(camera.XRotation + Math.PI / 10f < -Math.PI / 2f ? -Math.PI / 2f : camera.XRotation - Math.PI / 10f);
+				camera.XRotation = (float)(camera.XRotation + Math.PI / 36f < -Math.PI / 2f ? -Math.PI / 2f : camera.XRotation - Math.PI / 36f);
 				keyPressed = true;
 			}
 

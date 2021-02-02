@@ -51,7 +51,7 @@ namespace Template {
 			float[] reflectivityt = new float[vCount], refractionIndext = new float[vCount];
 			int[] texIdt = new int[vCount];
 			var scene = tracer.Scene;
-			for(int i = 0; i < scene.Count; i++)
+			/*for(int i = 0; i < scene.Count; i++)
             {
 				p1t[i] = VecToF3(scene[i].Point1);
 				p2t[i] = VecToF3(scene[i].Point2);
@@ -65,13 +65,69 @@ namespace Template {
 				refractionIndext[i] = scene[i].Material.RefractionIndex;
 				texIdt[i] = -1;
 				isLightt[i] = false;
-			}
+			}*/
 			var lights = tracer.Lights;
 			for(int i = 0; i < lights.Count; i++)
             {
 				lPost[i] = VecToF3(lights[i].Position);
 				lColt[i] = VecToF3(lights[i].Color);
 			}
+
+			
+
+			kernel.SetArgument(1, tracer.Camera.FOV);
+			kernel.SetArgument(2, VecToF3(tracer.Camera.Position));
+			kernel.SetArgument(3, VecToF3(tracer.Camera.Screen.TopLeft));
+			kernel.SetArgument(4, VecToF3(tracer.Camera.Screen.TopRigth));
+			kernel.SetArgument(5, VecToF3(tracer.Camera.Screen.BottomLeft));
+			kernel.SetArgument(6, VecToF3(tracer.Camera.Screen.BottomRight));
+
+
+
+
+			int[] vertexStart = new int[1023];
+			int[] vertexEnd = new int[1023];
+
+			float3[] bbMin = new float3[1023], bbMax = new float3[1023];
+
+			var queue = new Queue<BVH>();
+			queue.Enqueue(tracer.BVHs[0]);
+			int index = 0;
+			int vertexesSeen = 0;
+			while(queue.Count > 0)
+            {
+				var bvh = queue.Dequeue();
+				bbMin[index] = VecToF3(bvh.BoundingBox.Item1);
+				bbMax[index] = VecToF3(bvh.BoundingBox.Item2);
+				if(bvh.IsLeafNode)
+                {
+					vertexStart[index] = vertexesSeen;
+					foreach(var prim in bvh.Primitives)
+                    {
+						var vertex = prim as Vertex;
+						p1t[vertexesSeen] = VecToF3(vertex.Point1);
+						p2t[vertexesSeen] = VecToF3(vertex.Point2);
+						p3t[vertexesSeen] = VecToF3(vertex.Point3);
+						t1t[vertexesSeen] = VecToF3(vertex.Tex1);
+						t2t[vertexesSeen] = VecToF3(vertex.Tex2);
+						t3t[vertexesSeen] = VecToF3(vertex.Tex3);
+						normal[vertexesSeen] = VecToF3(vertex.Normal);
+						colort[vertexesSeen] = VecToF3(vertex.Material.color);
+						reflectivityt[vertexesSeen] = vertex.Material.Reflectivity;
+						refractionIndext[vertexesSeen] = vertex.Material.RefractionIndex;
+						texIdt[vertexesSeen] = -1;
+						vertexesSeen++;
+					}
+					vertexEnd[index] = vertexesSeen;
+                }
+				index++;
+				if (bvh.Left != null)
+					queue.Enqueue(bvh.Left);
+				if(bvh.Right != null)
+					queue.Enqueue(bvh.Right);
+			}
+			for (int i = 0; i < 1023; i++)
+				Console.WriteLine(bbMin[i].ToString() + " " + bbMax[i].ToString());
 
 			p1 = new OpenCLBuffer<float3>(ocl, p1t);
 			p2 = new OpenCLBuffer<float3>(ocl, p2t);
@@ -88,12 +144,7 @@ namespace Template {
 			lPos = new OpenCLBuffer<float3>(ocl, lPost);
 			lCol = new OpenCLBuffer<float3>(ocl, lColt);
 
-			kernel.SetArgument(1, tracer.Camera.FOV);
-			kernel.SetArgument(2, VecToF3(tracer.Camera.Position));
-			kernel.SetArgument(3, VecToF3(tracer.Camera.Screen.TopLeft));
-			kernel.SetArgument(4, VecToF3(tracer.Camera.Screen.TopRigth));
-			kernel.SetArgument(5, VecToF3(tracer.Camera.Screen.BottomLeft));
-			kernel.SetArgument(6, VecToF3(tracer.Camera.Screen.BottomRight));
+			
 
 			kernel.SetArgument(7, p1);
 			kernel.SetArgument(8, p2);
@@ -111,27 +162,10 @@ namespace Template {
 			kernel.SetArgument(20, lPos);
 			kernel.SetArgument(21, lCol);
 			kernel.SetArgument(22, lights.Count);
-
-			float3[] bbMin = new float3[1023], bbMax = new float3[1023];
-
-			var queue = new Queue<BVH>();
-			queue.Enqueue(tracer.BVHs[0]);
-			int index = 0;
-			while(queue.Count > 0)
-            {
-				var bvh = queue.Dequeue();
-				bbMin[index] = VecToF3(bvh.BoundingBox.Item1);
-				bbMax[index] = VecToF3(bvh.BoundingBox.Item2);
-				index++;
-				if(bvh.Left != null)
-					queue.Enqueue(bvh.Left);
-				if(bvh.Right != null)
-					queue.Enqueue(bvh.Right);
-			}
-			for (int i = 0; i < 1023; i++)
-				Console.WriteLine(bbMin[i].ToString() + " " + bbMax[i].ToString());
 			kernel.SetArgument(23, new OpenCLBuffer<float3>(ocl, bbMin));
 			kernel.SetArgument(24, new OpenCLBuffer<float3>(ocl, bbMax));
+			kernel.SetArgument(25, new OpenCLBuffer<int>(ocl, vertexStart));
+			kernel.SetArgument(26, new OpenCLBuffer<int>(ocl, vertexEnd));
 		}
 
 		float3 VecToF3(Vector3 vec)

@@ -24,7 +24,10 @@ namespace Template
             var objFile1 = "../../assets/capsule.obj";
             var objFile2 = "../../assets/less_basic_box.obj";
 
-            Lights.Add(new Light(new Vector3(0, 0, -1), new Vector3(75, 75, 75)));
+            Lights.Add(new Light(new Vector3(0, 0, -10), new Vector3(75, 75, 75)));
+            Lights.Add(new Light(new Vector3(-5, 0, -6), new Vector3(75, 75, 75)));
+            Lights.Add(new Light(new Vector3(0, 0, -5), new Vector3(75, 75, 75)));
+            Lights.Add(new Light(new Vector3(5, 0, -6), new Vector3(75, 75, 75)));
             Lights.Add(new Light(new Vector3(1, 6, -1), new Vector3(50, 25, 25)));
 
             // texture taken from https://mossandfog.com/expand-your-mind-with-these-intricate-fractals/

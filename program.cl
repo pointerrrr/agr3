@@ -1,6 +1,6 @@
 #define GLINTEROP
 #define maxDepth 10
-#define Epsilon 0.001f
+#define Epsilon 0.00001f
 
 float Intersect(float3 pos, float3 dir, float3 p1, float3 p2, float3 p3)
 {
@@ -49,7 +49,7 @@ bool castShadowRay(float3 lightPos, float3 intersectionPosition, __global float3
     float3 rayDirection = normalize(lightPos - intersectionPosition);
     for (int i = 0; i < objAmount; i++)
     {
-        float currentDistance = Intersect(intersectionPosition + rayDirection * Epsilon, rayDirection, p1[i], p2[i], p3[i]);
+        float currentDistance = Intersect(intersectionPosition - rayDirection * Epsilon, rayDirection, p1[i], p2[i], p3[i]);
         if (isnan(currentDistance) == 1 || isinf(currentDistance) == 1)
             continue;
         if (currentDistance < distToLight && currentDistance > 0.0001f)
@@ -87,7 +87,8 @@ float3 reflect(float3 rayDirection, float3 normal)
 #ifdef GLINTEROP
 __kernel void device_function( write_only image2d_t a, float fov, float3 position, float3 leftUpperCorner, float3 rightUpperCorner, float3 leftLowerCorner, float3 rightLowerCorner, __global float3* p1, __global float3* p2, __global float3* p3, 
 	__global float3* t1, __global float3* t2, __global float3* t3, __global float3* normals, int objAmount, __global float3* color, __global bool* isLight,
-	__global float* reflectivity, __global float* refractionIndex, __global int* texId, __global float3* lightPos, __global float3* lightCol, int lightAmount)
+	__global float* reflectivity, __global float* refractionIndex, __global int* texId, __global float3* lightPos, __global float3* lightCol, int lightAmount,
+    __global float3* bbMin, __global float3* bbMax, __global int* vStart, __global int* vEnd)
 #else
 __kernel void device_function( __global int* a, float t )
 #endif
@@ -135,6 +136,8 @@ __kernel void device_function( __global int* a, float t )
         float currentDistance = -1;
         int closestObject = -1;
         float bestDistance = MAXFLOAT;
+
+
 
         // TODO: currently we do not use the bvh so try to implement this
         // Determine closest object

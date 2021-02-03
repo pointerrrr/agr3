@@ -126,8 +126,8 @@ namespace Template {
 				if(bvh.Right != null)
 					queue.Enqueue(bvh.Right);
 			}
-			for (int i = 0; i < 1023; i++)
-				Console.WriteLine(bbMin[i].ToString() + " " + bbMax[i].ToString());
+			//for (int i = 0; i < 1023; i++)
+				//Console.WriteLine(bbMin[i].ToString() + " " + bbMax[i].ToString());
 
 			p1 = new OpenCLBuffer<float3>(ocl, p1t);
 			p2 = new OpenCLBuffer<float3>(ocl, p2t);
@@ -210,6 +210,7 @@ namespace Template {
 				{
 					screen.pixels[x + y * screen.width] = buffer[x + y * 512];
 				}
+
 			}
 		}
 		public void Render() 

@@ -43,24 +43,6 @@ float Intersect(float3 pos, float3 dir, float3 p1, float3 p2, float3 p3)
     return intersection;*/
 }
 
-bool castShadowRay(float3 lightPos, float3 intersectionPosition, __global float3* p1, __global float3* p2, __global float3* p3, int objAmount )
-{
-    float distToLight = length(lightPos - intersectionPosition);
-    float3 rayDirection = normalize(lightPos - intersectionPosition);
-    for (int i = 0; i < objAmount; i++)
-    {
-        float currentDistance = Intersect(intersectionPosition - rayDirection * Epsilon, rayDirection, p1[i], p2[i], p3[i]);
-        if (isnan(currentDistance) == 1 || isinf(currentDistance) == 1)
-            continue;
-        if (currentDistance < distToLight && currentDistance > 0.0001f)
-        {
-            ///printf("%f\n", currentDistance);
-            return false;
-        }
-    }
-    return true;
-
-}
 
 bool IntersectAABB(float3 minC, float3 maxC, float3 position, float3 direction)
 {
@@ -94,10 +76,85 @@ int closestBoundingVolume(__global float3* bbMin, __global float3* bbMax, float3
         return index2;
 }
 
-bool detectObstacle(__global bbMin, __global bbMax, currentPosition, currentDirection)
+bool castShadowRay(float3 lightPos, float3 currentPosition, __global float3* p1, __global float3* p2, __global float3* p3, int objAmount,
+    __global float3* bbMin, __global float3* bbMax, __global int* vStart, __global int* vEnd )
 {
-    
+    return true;
+    float bestDistance = length(lightPos - currentPosition);
+    float3 currentDirection = normalize(lightPos - currentPosition);
+    if (IntersectAABB(bbMin[0], bbMax[0], currentPosition, currentDirection))
+    {
+        // calculate closest child
+        //int current = closestBoundingVolume(bbMin, bbMax, currentPosition, 1, 2);
+        int state = 3;
+        bool run = true;
+        int current = 0;
+        int previous = -1;
+        while (run)
+        {
+            if (current > previous && current >= 511)
+            {
+                if (IntersectAABB(bbMin[current], bbMax[current], currentPosition, currentDirection))
+                {
+                    if (vEnd[current] > 0)
+                    {
+                        bestDistance = MAXFLOAT;
+                        for (int j = vStart[current]; j < vStart[current] + vEnd[current]; j++)
+                        {
+                            float currentDistance = Intersect(currentPosition, currentDirection, p1[j], p2[j], p3[j]);
+                            // CurrentDistance is NaN of Inf so we do not hit the current object therefore we skip
+                            if (isnan(currentDistance) == 1 || isinf(currentDistance) == 1)
+                                continue;
+                            if (currentDistance < bestDistance)
+                            {
+                                return false;
+                            }
+                        }
+                    }
+                }
+                previous = current;
+                current = (current + 1) / 2 - 1;
+            }
+            else if (current > previous)
+            {
+                if (IntersectAABB(bbMin[current], bbMax[current], currentPosition, currentDirection))
+                {
+                    previous = current;
+                    current = closestBoundingVolume(bbMin, bbMax, currentPosition, current * 2 + 1, current * 2 + 2);
+                }
+                else
+                {
+                    previous = current;
+                    current = (current + 1) / 2 - 1;
+                }
+            }
+            else
+            {
+                int closest = closestBoundingVolume(bbMin, bbMax, currentPosition, current * 2 + 1, current * 2 + 2);
+                if (previous == closest)
+                {
+                    int temp = current;
+                    if ((previous & 1) == 0)
+                        current = previous - 1;
+                    else
+                        current = previous + 1;
+                    previous = temp;
+                }
+                else
+                {
+                    if (current == 0)
+                        run = false;
+                    previous = current;
+                    current = (current + 1) / 2 - 1;
+                }
+
+            }
+        }
+    }
+    return true;
 }
+
+
 
 #ifdef GLINTEROP
 __kernel void device_function( write_only image2d_t a, float fov, float3 position, float3 leftUpperCorner, float3 rightUpperCorner, float3 leftLowerCorner, float3 rightLowerCorner, __global float3* p1, __global float3* p2, __global float3* p3, 
@@ -155,13 +212,13 @@ __kernel void device_function( __global int* a, float t )
 
         // currentgetal *2 ( currentgetal * 2) + 1
 
-        // TODO: currently we do not use the bvh so try to implement this
         // Determine closest object
         // Check if we hit the root bounding volumen
+        // bvh-traversal algorithm adapted from: http://www.davidovic.cz/wiki/lib/exe/fetch.php/school/hapala_sccg2011/hapala_sccg2011.pdf
         if (IntersectAABB(bbMin[0], bbMax[0], currentPosition, currentDirection))
         {
             // calculate closest child
-            int current = closestBoundingVolume(bbMin, bbMax, currentPosition, 1, 2);
+            //int current = closestBoundingVolume(bbMin, bbMax, currentPosition, 1, 2);
             // states:
             // 1 from child
             // 2 from sibling
@@ -169,157 +226,76 @@ __kernel void device_function( __global int* a, float t )
             int state = 3;
             bool run = true;
             int counter = 0;
-            while (run) 
+            int current = 0;
+            int previous = -1;
+            while (run)
             {
-                if (idx == 246 && idy == 295)
-                   printf("%f %f\n", (float)current, (float)(current & 1));
-                switch (state) 
+                //if (idx == 229 && idy == 283)
+                    //printf("%f, %f\n", (float)current, (float)previous);
+                counter++;
+                if (current > previous && current >= 511)
                 {
-                case 1 :
+                    if (IntersectAABB(bbMin[current], bbMax[current], currentPosition, currentDirection))
                     {
-                        //Back in root, finished checking
-                        if(current <= 0)
+                        if (vEnd[current] > 0)
                         {
-                            
+                            bestDistance = MAXFLOAT;
+                            for (int j = vStart[current]; j < vStart[current] + vEnd[current]; j++)
+                            {
+                                currentDistance = Intersect(currentPosition, currentDirection, p1[j], p2[j], p3[j]);
+                                // CurrentDistance is NaN of Inf so we do not hit the current object therefore we skip
+                                if (isnan(currentDistance) == 1 || isinf(currentDistance) == 1)
+                                    continue;
+                                if (currentDistance < bestDistance) {
+                                    bestDistance = currentDistance;
+                                    closestObject = j;
+
+                                }
+                            }
+                            if (closestObject != -1)
+                                run = false;
+                        }
+                    }
+                    previous = current;
+                    current = (current + 1) / 2 - 1;
+                }
+                else if (current > previous)
+                {
+                    if (IntersectAABB(bbMin[current], bbMax[current], currentPosition, currentDirection))
+                    {
+                        previous = current;
+                        current = closestBoundingVolume(bbMin, bbMax, currentPosition, current * 2 + 1, current * 2 + 2);
+                    }
+                    else
+                    {
+                        previous = current;
+                        current = (current + 1) / 2 - 1;
+                    }
+                }
+                else
+                {
+                    int closest = closestBoundingVolume(bbMin, bbMax, currentPosition, current * 2 + 1, current * 2 + 2);
+                    if (previous == closest)
+                    {
+                        int temp = current;
+                        if ((previous & 1) == 0)
+                            current = previous - 1;                        
+                        else
+                            current = previous + 1;
+                        previous = temp;                        
+                    }
+                    else
+                    {
+                        if (current == 0)
                             run = false;
-                            continue;
-                        }
-                        // Need to check sibling
-                        int closeId;
-                        if ((current & 1) == 0)
-                            closeId = current - 1;
-                        else
-                            closeId = current + 1;
-                        int index1 = min(current, closeId);
-                        int index2 = max(current, closeId);
-                        if (current == closestBoundingVolume(bbMin, bbMax, currentPosition, index1, index2))
-                        {
-                            // determine new current
-                            if ((current & 1) == 0)
-                                current = current - 1;
-                            else
-                                current = current + 1;
-
-                            state = 2;
-                        }
-                        // Go back to parent
-                        else
-                        {
-                          
-                            current = (current + 1) / 2 - 1;
-                            state = 1;
-                        }
-                        counter++;
-                        break;
-
+                        previous = current;
+                        current = (current + 1) / 2 - 1;
                     }
-                case 2 :
-                    {
-                        if (!IntersectAABB(bbMin[current], bbMax[current], currentPosition, currentDirection))
-                        {
-                            current = (current + 1) / 2 - 1;
-                            state = 1;
-                        }
-                        else if (current >= 511) 
-                        {
-                            if (vEnd[current] > 0) 
-                            {
-                                bestDistance = MAXFLOAT;
-                                for (int j = vStart[current]; j < vStart[current] + vEnd[current]; j++)
-                                {
-                                    currentDistance = Intersect(currentPosition, currentDirection, p1[j], p2[j], p3[j]);
-                                    // CurrentDistance is NaN of Inf so we do not hit the current object therefore we skip
-                                    if (isnan(currentDistance) == 1 || isinf(currentDistance) == 1)
-                                        continue;
-                                    if (currentDistance < bestDistance) {
-                                        bestDistance = currentDistance;
-                                        closestObject = j;
 
-                                    }
-                                }
-                                if (closestObject != -1)
-                                    run = false;
-                            }
-                            current = (current + 1) / 2 - 1;
-                            state = 1;
-                        }
-                        else
-                        {
-                            current = closestBoundingVolume(bbMin, bbMax, currentPosition, current * 2 + 1, current * 2 + 2);
-                                //closestBoundingVolume(bbMin[current * 2 + 1], bbMin[current * 2 + 2], bbMax[current * 2 + 1], bbMax[current * 2 + 2], currentPosition, current * 2 + 1);
-                            state = 3;
-                        }
-                        counter++;
-                        break;
-                    }
-                case 3 :
-                    {
-                        if (!IntersectAABB(bbMin[current], bbMax[current], currentPosition, currentDirection)) 
-                        {
-                            if ((current & 1) == 0)
-                                current = current - 1;
-                            else
-                                current = current + 1;
-                            state = 2;
-                        }
-                        else if (current >= 511) 
-                        {
-                            if (vEnd[current] > 0)
-                            {
-                                bestDistance = MAXFLOAT;
-                                for (int j = vStart[current]; j < vStart[current] + vEnd[current]; j++)
-                                {
-                                    currentDistance = Intersect(currentPosition, currentDirection, p1[j], p2[j], p3[j]);
-                                    // CurrentDistance is NaN of Inf so we do not hit the current object therefore we skip
-                                    if (isnan(currentDistance) == 1 || isinf(currentDistance) == 1)
-                                        continue;
-                                    if (currentDistance < bestDistance) {
-                                        bestDistance = currentDistance;
-                                        closestObject = j;
-
-                                    }
-                                    
-                                }
-                                if (closestObject != -1)
-                                    run = false;
-                                //if (current == 816 && counter >= 1023)
-                                //    printf("%f %f\n", (float)idx, (float)idy);
-                                //printf("%f %f\n", (float)current, (float)(current & 1));
-                                
-                            }
-                            if ((current & 1) == 0)
-                                current = current - 1;
-                            else
-                                current = current + 1;
-                            state = 2;
-                            
-                        }
-                        else
-                        {
-                            current = closestBoundingVolume(bbMin, bbMax, currentPosition, current * 2 + 1, current * 2 + 2);
-                            state = 3;
-                        }
-                        counter++;
-                        break;
-
-                    }
                 }
             }
         }
        
-
-        /*for (int j = 0; j < objAmount; j++)
-        {
-            currentDistance = Intersect(currentPosition, currentDirection, p1[j], p2[j], p3[j]);
-            // CurrentDistance is NaN of Inf so we do not hit the current object therefore we skip
-            if (isnan(currentDistance) == 1 || isinf(currentDistance) == 1)
-                continue;
-            if (currentDistance < bestDistance) {
-                bestDistance = currentDistance;
-                closestObject = j;
-
-            }
-        }*/
 
         // TODO: Hit skybox
         if (closestObject < 0)
@@ -338,24 +314,17 @@ __kernel void device_function( __global int* a, float t )
         float3 illumination = (float3)(0.f, 0.f, 0.f);
         for (int j = 0; j < lightAmount; j++)
         {
-            if (castShadowRay(lightPos[j], intersectionPosition, p1, p2, p3, objAmount))
+            if (castShadowRay(lightPos[j], intersectionPosition, p1, p2, p3, objAmount, bbMin, bbMax, vStart, vEnd))
             {
                 float distance = length(lightPos[j] - intersectionPosition);
                 float attenuation = 1.f / (distance * distance);
                 float nDotL = dot(currentNormal, normalize(lightPos[j] - intersectionPosition));
-                //printf("%f\n", nDotL);
                 if (nDotL < 0)
                     continue;
                 illumination += nDotL * attenuation * lightCol[j];
-                
-                //printf("%f\n", attenuation);
-                //printf("%f\n", lightCol[j].x);
             }
         }
         
-        // *0.9f + 0.1f * color[(int)closestObject];
-        
-
         if (reflectivity[closestObject] > 0)
         {
             if (i + 1 >= maxDepth)
@@ -430,80 +399,4 @@ __kernel void device_function( __global int* a, float t )
 
    write_imagef(a, (int2)(idx, idy), (float4)(currentColor.x, currentColor.y, currentColor.z, 0.f));
    //write_imagef(a, (int2)(idx, idy), (float4)(0.f, 1.f, 1.f, 0.f));
-
-
-    
-
 }
-
-/*// Begin steeds meer te denken om dit fucking ding gewoon in de device_fucntion method te gooien
-float3 Trace(float3 position, float3 direction, float3* p1, float3* p2, float3* p3, float3* normals, int objAmount, float3* lightPos, float3* lightCol ,int lightAmount)
-{
-    // Loop over every object
-    float currentDistance = -1;
-    int closestObject = -1;
-    float bestDistance = MAXFLOAT;
-    // TODO: currently we do not use the bvh so try to implement this
-    // Determine closest object
-    for (int i = 0; i < objAmount; i++)
-    {
-        currentDistance = Intersect(position, direction, p1[i], p2[i], p3[i]);
-
-        // CurrentDistance is NaN so we do not hit the current object therefore we continue
-        if (isnan(currentDistance) == 0)
-            continue;
-        if (currentDistance < bestDistance) {
-            bestDistance = currentDistance;
-            closestObject = i;
-        }
-    }
-
-    // Check if the normal needs to be flipped
-    float3 currentNormal;
-    if (dot(normals[closestObject], direction) > 0)
-        currentNormal = normals[closestObject] * -1;
-    else
-        currentNormal = normals[closestObject];
-
-
-    // TODO: Hit skybox
-    if (closestObject == -1)
-        return (float3)(0.f, 0.f, 0.f);
-
-    float3 intersectionPosition = position + (direction * bestDistance);
-    float3 illumination = (float3)(0.f, 0.f, 0.f);
-    for (int i = 0; i < lightAmount; i++)
-    {
-        if (castShadowRay(lightPos[i], intersectionPosition))
-        {
-            float distance = length(lightPos[i] - intersectionPosition);
-            float attenuation = 1.f / (distance * distance);
-            float nDotL = dot(currentNormal, normalize(lightPos[i] - intersectionPosition));
-
-            if (nDotL < 0)
-                continue;
-            illumination += nDotL * attenuation * lightCol[i];
-        }
-    }
-
-    if (reflectivity[closestObject] != 0) {
-        // TODO: Add reflectivity
-    }
-
-    if (refractionIndex[closestObject] != 0)
-    {
-        // TODO: Add refractions
-    }
-
-    if (texId[closestObject] != -1)
-    {
-        //TODO: Add textures
-    }
-
-    // TODO: Add reflectivity, refraction  and texture to color
-    return color[closestObject] * illumination;
-    
-
-
-}*/
-

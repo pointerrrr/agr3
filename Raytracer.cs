@@ -21,7 +21,7 @@ namespace Template
 
         private void MakeScene()
         {
-            var objFile1 = "../../assets/capsule.obj";
+            var objFile1 = "../../assets/basic_box.obj";
             var objFile2 = "../../assets/less_basic_box.obj";
 
             Lights.Add(new Light(new Vector3(0, 0, -10), new Vector3(75, 75, 75)));

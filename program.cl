@@ -1,6 +1,6 @@
 #define GLINTEROP
 #define maxDepth 10
-#define Epsilon 0.000001f
+#define Epsilon 0.00001f
 
 float Intersect(float3 pos, float3 dir, float3 p1, float3 p2, float3 p3)
 {
@@ -24,12 +24,12 @@ float Intersect(float3 pos, float3 dir, float3 p1, float3 p2, float3 p3)
 
     q = cross(s, edge1);
     v = f * dot(dir, q);
-    if (v < 0 || u + v > 1)
+    if (v < 0.f || u + v > 1.f)
         return 1.f / 0.f;
     float t = f * dot(edge2, q);
     if (t < Epsilon)
         return 1.f / 0.f;
-    return t;
+    return t - Epsilon;
 }
 
 
@@ -65,10 +65,9 @@ int closestBoundingVolume(__global float3* bbMin, __global float3* bbMax, float3
         return index2;
 }
 
-bool castShadowRay(float3 lightPos, float3 intersectionPosition, __global float3* p1, __global float3* p2, __global float3* p3, int objAmount,
+bool castShadowRay(float3 lightPos, float3 currentPositiona, __global float3* p1, __global float3* p2, __global float3* p3, int objAmount,
     __global float3* bbMin, __global float3* bbMax, __global int* vStart, __global int* vEnd )
 {
-    /*
     float bestDistance = length(lightPos - currentPositiona);
     
     float3 currentDirection = normalize(lightPos - currentPositiona);
@@ -137,21 +136,6 @@ bool castShadowRay(float3 lightPos, float3 intersectionPosition, __global float3
                 }
 
             }
-        }
-    }
-    return true;   
-    */
-    float distToLight = length(lightPos - intersectionPosition);
-    float3 rayDirection = normalize(lightPos - intersectionPosition);
-    for (int i = 0; i < objAmount; i++)
-    {
-        float currentDistance = Intersect(intersectionPosition - rayDirection * Epsilon, rayDirection, p1[i], p2[i], p3[i]);
-        if (isnan(currentDistance) == 1 || isinf(currentDistance) == 1)
-            continue;
-        if (currentDistance < distToLight && currentDistance > 0.0001f)
-        {
-            ///printf("%f\n", currentDistance);
-            return false;
         }
     }
     return true;

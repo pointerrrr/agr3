@@ -85,7 +85,6 @@ bool castShadowRay(float3 lightPos, float3 currentPositiona, __global float3* p1
                 {
                     if (vEnd[current] > 0)
                     {
-                        //bestDistance = MAXFLOAT;
                         for (int j = vStart[current]; j < vStart[current] + vEnd[current]; j++)
                         {
                             float currentDistance = Intersect(currentPosition, currentDirection, p1[j], p2[j], p3[j]);

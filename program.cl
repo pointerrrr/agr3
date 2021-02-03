@@ -1,6 +1,6 @@
 #define GLINTEROP
 #define maxDepth 10
-#define Epsilon 0.00001f
+#define Epsilon 0.001f
 
 float Intersect(float3 pos, float3 dir, float3 p1, float3 p2, float3 p3)
 {
@@ -29,7 +29,7 @@ float Intersect(float3 pos, float3 dir, float3 p1, float3 p2, float3 p3)
     float t = f * dot(edge2, q);
     if (t < Epsilon)
         return 1.f / 0.f;
-    return t - Epsilon;
+    return t;
 }
 
 
@@ -351,8 +351,9 @@ __kernel void device_function( __global int* a, float t )
             {
                 if (i + 1 >= maxDepth)
                     break;
-                rayLocation[i + 1] = intersectionPosition;
-                rayDirection[i + 1] = reflect(currentDirection, currentNormal);
+                float3 newDir = reflect(currentDirection, currentNormal);
+                rayLocation[i + 1] = intersectionPosition + newDir * Epsilon;
+                rayDirection[i + 1] = newDir;
 
             }
             else

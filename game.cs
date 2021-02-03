@@ -15,7 +15,7 @@ namespace Template {
 	class Game
 	{
 		// when GLInterop is set to true, the fractal is rendered directly to an OpenGL texture
-		bool GLInterop = false;
+		bool GLInterop = true;
 		// load the OpenCL program; this creates the OpenCL context
 		static OpenCLProgram ocl = new OpenCLProgram( "../../program.cl" );
 		// find the kernel named 'device_function' in the program
@@ -24,14 +24,15 @@ namespace Template {
 		OpenCLBuffer<int> buffer = new OpenCLBuffer<int>( ocl, 512 * 512 );
 		// create an OpenGL texture to which OpenCL can send data
 		OpenCLImage<int> image = new OpenCLImage<int>( ocl, 512, 512 );
-		OpenCLBuffer<float3> p1, p2, p3, t1, t2, t3, normals, color, lPos, lCol;
-		OpenCLBuffer<bool> isLight;
+		OpenCLBuffer<float3> p1, p2, p3, t1, t2, t3, normals, color, lPos, lCol, bbMin, bbMax;
 		OpenCLBuffer<float> reflectivity, refractionIndex;
-		OpenCLBuffer<int> texId, objAmount, lightAmount;
+		OpenCLBuffer<int> texId, objAmount, lightAmount, vertexStart, vertexEnd;
+
 		public Surface screen;
 		Stopwatch timer = new Stopwatch();
 		float t = 21.5f;
 		float fov = 90;
+		int sceneCount = 0, lightCount = 0;
 		Vector3 startPos, TopLeft, TopRigth, BottomLeft, BottomRight;
 		// TODO: I dont think direction is needed here, as we need to calculate that for every pixel on the gpu.
 		// I think its better to send the corners of the screen towards to gpu instead of the direction
@@ -43,67 +44,52 @@ namespace Template {
 			Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
 			tracer = new Raytracer(1);
 			
+			var camera = tracer.Camera;
+			Matrix4 rotation = Matrix4.CreateRotationX(camera.XRotation);
+			rotation *= Matrix4.CreateRotationY(camera.YRotation);
+			Matrix4 translation = Matrix4.CreateTranslation(camera.Position);
+
+			kernel.SetArgument(1, camera.FOV);
+			kernel.SetArgument(2, VecToF3(camera.Position));
+
+			kernel.SetArgument(3, VecToF3(Vector3.Transform(camera.Screen.TopLeft, rotation * translation)));
+			kernel.SetArgument(4, VecToF3(Vector3.Transform(camera.Screen.TopRigth, rotation * translation)));
+			kernel.SetArgument(5, VecToF3(Vector3.Transform(camera.Screen.BottomLeft, rotation * translation)));
+			kernel.SetArgument(6, VecToF3(Vector3.Transform(camera.Screen.BottomRight, rotation * translation)));
 			int vCount = tracer.BVHs[0].Primitives.Count, lCount = tracer.Lights.Count;
 			float3[] p1t = new float3[vCount], p2t = new float3[vCount], p3t = new float3[vCount],
-				t1t = new float3[vCount], t2t = new float3[vCount], t3t = new float3[vCount], normal = new float3[vCount],colort = new float3[vCount],
+				t1t = new float3[vCount], t2t = new float3[vCount], t3t = new float3[vCount], normal = new float3[vCount], colort = new float3[vCount],
 				lPost = new float3[lCount], lColt = new float3[lCount];
 			bool[] isLightt = new bool[vCount];
 			float[] reflectivityt = new float[vCount], refractionIndext = new float[vCount];
 			int[] texIdt = new int[vCount];
 			var scene = tracer.Scene;
-			/*for(int i = 0; i < scene.Count; i++)
-            {
-				p1t[i] = VecToF3(scene[i].Point1);
-				p2t[i] = VecToF3(scene[i].Point2);
-				p3t[i] = VecToF3(scene[i].Point3);
-				t1t[i] = VecToF3(scene[i].Tex1);
-				t2t[i] = VecToF3(scene[i].Tex2);
-				t3t[i] = VecToF3(scene[i].Tex3);
-				normal[i] = VecToF3(scene[i].Normal);
-				colort[i] = VecToF3(scene[i].Material.color);
-				reflectivityt[i] = scene[i].Material.Reflectivity;
-				refractionIndext[i] = scene[i].Material.RefractionIndex;
-				texIdt[i] = -1;
-				isLightt[i] = false;
-			}*/
+			int[] vertexStartt = new int[1023];
+			int[] vertexEndt = new int[1023];
+
+			float3[] bbMint = new float3[1023], bbMaxt = new float3[1023];
+
 			var lights = tracer.Lights;
-			for(int i = 0; i < lights.Count; i++)
-            {
+			for (int i = 0; i < lights.Count; i++)
+			{
 				lPost[i] = VecToF3(lights[i].Position);
 				lColt[i] = VecToF3(lights[i].Color);
 			}
-
-			
-
-			kernel.SetArgument(1, tracer.Camera.FOV);
-			kernel.SetArgument(2, VecToF3(tracer.Camera.Position));
-			kernel.SetArgument(3, VecToF3(tracer.Camera.Screen.TopLeft));
-			kernel.SetArgument(4, VecToF3(tracer.Camera.Screen.TopRigth));
-			kernel.SetArgument(5, VecToF3(tracer.Camera.Screen.BottomLeft));
-			kernel.SetArgument(6, VecToF3(tracer.Camera.Screen.BottomRight));
-
-
-
-
-			int[] vertexStart = new int[1023];
-			int[] vertexEnd = new int[1023];
-
-			float3[] bbMin = new float3[1023], bbMax = new float3[1023];
 
 			var queue = new Queue<BVH>();
 			queue.Enqueue(tracer.BVHs[0]);
 			int index = 0;
 			int vertexesSeen = 0;
-			while(queue.Count > 0)
-            {
+			while (queue.Count > 0)
+			{
 				var bvh = queue.Dequeue();
-				bbMin[index] = VecToF3(bvh.BoundingBox.Item1);
-				bbMax[index] = VecToF3(bvh.BoundingBox.Item2);
-				if(bvh.IsLeafNode)
-                {
-					vertexStart[index] = vertexesSeen;
-					foreach(var prim in bvh.Primitives)
-                    {
+				bbMint[index] = VecToF3(bvh.BoundingBox.Item1);
+				bbMaxt[index] = VecToF3(bvh.BoundingBox.Item2);
+				if (bvh.IsLeafNode)
+				{
+					vertexStartt[index] = vertexesSeen;
+					foreach (var prim in bvh.Primitives)
+					{
 						var vertex = prim as Vertex;
 						p1t[vertexesSeen] = VecToF3(vertex.Point1);
 						p2t[vertexesSeen] = VecToF3(vertex.Point2);
@@ -118,17 +104,15 @@ namespace Template {
 						texIdt[vertexesSeen] = -1;
 						vertexesSeen++;
 					}
-					vertexEnd[index] = vertexesSeen - vertexStart[index];
-                }
+					vertexEndt[index] = vertexesSeen - vertexStartt[index];
+				}
 				index++;
 				if (bvh.Left != null)
 					queue.Enqueue(bvh.Left);
-				if(bvh.Right != null)
+				if (bvh.Right != null)
 					queue.Enqueue(bvh.Right);
 			}
-			//for (int i = 0; i < 1023; i++)
-				//Console.WriteLine(bbMin[i].ToString() + " " + bbMax[i].ToString());
-
+			
 			p1 = new OpenCLBuffer<float3>(ocl, p1t);
 			p2 = new OpenCLBuffer<float3>(ocl, p2t);
 			p3 = new OpenCLBuffer<float3>(ocl, p3t);
@@ -137,14 +121,15 @@ namespace Template {
 			t3 = new OpenCLBuffer<float3>(ocl, t3t);
 			normals = new OpenCLBuffer<float3>(ocl, normal);
 			color = new OpenCLBuffer<float3>(ocl, colort);
-			isLight = new OpenCLBuffer<bool>(ocl, isLightt);
 			reflectivity = new OpenCLBuffer<float>(ocl, reflectivityt);
 			refractionIndex = new OpenCLBuffer<float>(ocl, refractionIndext);
 			texId = new OpenCLBuffer<int>(ocl, texIdt);
 			lPos = new OpenCLBuffer<float3>(ocl, lPost);
 			lCol = new OpenCLBuffer<float3>(ocl, lColt);
-
-			
+			bbMin = new OpenCLBuffer<float3>(ocl, bbMint);
+			bbMax = new OpenCLBuffer<float3>(ocl, bbMaxt);
+			vertexStart = new OpenCLBuffer<int>(ocl, vertexStartt);
+			vertexEnd = new OpenCLBuffer<int>(ocl, vertexEndt);
 
 			kernel.SetArgument(7, p1);
 			kernel.SetArgument(8, p2);
@@ -153,19 +138,20 @@ namespace Template {
 			kernel.SetArgument(11, t2);
 			kernel.SetArgument(12, t3);
 			kernel.SetArgument(13, normals);
-			kernel.SetArgument(14, scene.Count);
+			sceneCount = scene.Count;
+			kernel.SetArgument(14, sceneCount);
 			kernel.SetArgument(15, color);
-			kernel.SetArgument(16, isLight);
-			kernel.SetArgument(17, reflectivity);
-			kernel.SetArgument(18, refractionIndex);
-			kernel.SetArgument(19, texId);
-			kernel.SetArgument(20, lPos);
-			kernel.SetArgument(21, lCol);
-			kernel.SetArgument(22, lights.Count);
-			kernel.SetArgument(23, new OpenCLBuffer<float3>(ocl, bbMin));
-			kernel.SetArgument(24, new OpenCLBuffer<float3>(ocl, bbMax));
-			kernel.SetArgument(25, new OpenCLBuffer<int>(ocl, vertexStart));
-			kernel.SetArgument(26, new OpenCLBuffer<int>(ocl, vertexEnd));
+			kernel.SetArgument(16, reflectivity);
+			kernel.SetArgument(17, refractionIndex);
+			kernel.SetArgument(18, texId);
+			kernel.SetArgument(19, lPos);
+			kernel.SetArgument(20, lCol);
+			lightCount = lights.Count;
+			kernel.SetArgument(21, lightCount);
+			kernel.SetArgument(22, bbMin);
+			kernel.SetArgument(23, bbMax);
+			kernel.SetArgument(24, vertexStart);
+			kernel.SetArgument(25, vertexEnd);
 		}
 
 		float3 VecToF3(Vector3 vec)
@@ -185,7 +171,6 @@ namespace Template {
 				kernel.SetArgument( 0, buffer );
 
 			
-
 			t += 0.1f;
  			// execute kernel
 			long [] workSize = { 512, 512 };
@@ -197,7 +182,6 @@ namespace Template {
 				// execute the kernel
 				kernel.Execute( workSize, localSize );
 				// unlock the OpenGL texture so it can be used for drawing a quad
-				//System.Threading.Thread.Sleep(100);
 				kernel.UnlockOpenGLObject( image.texBuffer );
 			}
 			else

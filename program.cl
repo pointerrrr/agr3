@@ -1,6 +1,6 @@
 #define GLINTEROP
 #define maxDepth 10
-#define Epsilon 0.00001f
+#define Epsilon 0.000001f
 
 float Intersect(float3 pos, float3 dir, float3 p1, float3 p2, float3 p3)
 {
@@ -30,17 +30,6 @@ float Intersect(float3 pos, float3 dir, float3 p1, float3 p2, float3 p3)
     if (t < Epsilon)
         return 1.f / 0.f;
     return t;
-    /*intersection.length = t - Epsilon;
-    intersection.Position = ray.position + (intersection.length * ray.direction);
-    if (Dot(Normal, ray.direction) > 0)
-        intersection.normal = -Normal;
-    else
-        intersection.normal = Normal;
-
-    intersection.primitive = this;
-    intersection.ray = ray;
-
-    return intersection;*/
 }
 
 
@@ -76,17 +65,16 @@ int closestBoundingVolume(__global float3* bbMin, __global float3* bbMax, float3
         return index2;
 }
 
-bool castShadowRay(float3 lightPos, float3 currentPosition, __global float3* p1, __global float3* p2, __global float3* p3, int objAmount,
+bool castShadowRay(float3 lightPos, float3 intersectionPosition, __global float3* p1, __global float3* p2, __global float3* p3, int objAmount,
     __global float3* bbMin, __global float3* bbMax, __global int* vStart, __global int* vEnd )
 {
-    return true;
-    /*float bestDistance = length(lightPos - currentPosition);
-    float3 currentDirection = normalize(lightPos - currentPosition);
+    /*
+    float bestDistance = length(lightPos - currentPositiona);
+    
+    float3 currentDirection = normalize(lightPos - currentPositiona);
+    float3 currentPosition = currentPositiona + currentDirection * Epsilon;
     if (IntersectAABB(bbMin[0], bbMax[0], currentPosition, currentDirection))
     {
-        // calculate closest child
-        //int current = closestBoundingVolume(bbMin, bbMax, currentPosition, 1, 2);
-        int state = 3;
         bool run = true;
         int current = 0;
         int previous = -1;
@@ -98,7 +86,7 @@ bool castShadowRay(float3 lightPos, float3 currentPosition, __global float3* p1,
                 {
                     if (vEnd[current] > 0)
                     {
-                        bestDistance = MAXFLOAT;
+                        //bestDistance = MAXFLOAT;
                         for (int j = vStart[current]; j < vStart[current] + vEnd[current]; j++)
                         {
                             float currentDistance = Intersect(currentPosition, currentDirection, p1[j], p2[j], p3[j]);
@@ -151,20 +139,34 @@ bool castShadowRay(float3 lightPos, float3 currentPosition, __global float3* p1,
             }
         }
     }
-    return true;
+    return true;   
     */
+    float distToLight = length(lightPos - intersectionPosition);
+    float3 rayDirection = normalize(lightPos - intersectionPosition);
+    for (int i = 0; i < objAmount; i++)
+    {
+        float currentDistance = Intersect(intersectionPosition - rayDirection * Epsilon, rayDirection, p1[i], p2[i], p3[i]);
+        if (isnan(currentDistance) == 1 || isinf(currentDistance) == 1)
+            continue;
+        if (currentDistance < distToLight && currentDistance > 0.0001f)
+        {
+            ///printf("%f\n", currentDistance);
+            return false;
+        }
+    }
+    return true;
 }
 
 
 
-//#ifdef GLINTEROP
-__kernel void device_function( __global int* a, float fov, float3 position, float3 leftUpperCorner, float3 rightUpperCorner, float3 leftLowerCorner, float3 rightLowerCorner, __global float3* p1, __global float3* p2, __global float3* p3, 
-	__global float3* t1, __global float3* t2, __global float3* t3, __global float3* normals, int objAmount, __global float3* color, __global bool* isLight,
+#ifdef GLINTEROP
+__kernel void device_function( write_only image2d_t a, float fov, float3 position, float3 leftUpperCorner, float3 rightUpperCorner, float3 leftLowerCorner, float3 rightLowerCorner, __global float3* p1, __global float3* p2, __global float3* p3, 
+	__global float3* t1, __global float3* t2, __global float3* t3, __global float3* normals, int objAmount, __global float3* color,
 	__global float* reflectivity, __global float* refractionIndex, __global int* texId, __global float3* lightPos, __global float3* lightCol, int lightAmount,
     __global float3* bbMin, __global float3* bbMax, __global int* vStart, __global int* vEnd)
-//#else
-//__kernel void device_function( __global int* a, float t )
-//#endif
+#else
+__kernel void device_function( __global int* a, float t )
+#endif
 {
     // adapted from inigo quilez - iq/2013
 	int idx = get_global_id( 0 );
@@ -187,7 +189,7 @@ __kernel void device_function( __global int* a, float fov, float3 position, floa
     float oldLeft = 0.f;
     float3 horizontal = rightUpperCorner - leftUpperCorner;
     float3 vertical = leftLowerCorner - leftUpperCorner;
-    float3 pixelLocation = leftUpperCorner + (horizontal / 512) * idx + (vertical / 512) * idy;
+    float3 pixelLocation = leftUpperCorner + (horizontal / 512.f) * idx + (vertical / 512.f) * idy;
     int counter = 1;
     float3 reflectionColor = (float3)(0.f, 0.f, 0.f);
     float3 refractionColor = (float3)(0.f, 0.f, 0.f);
@@ -401,10 +403,10 @@ __kernel void device_function( __global int* a, float fov, float3 position, floa
     if (currentColor.z > 1)
         currentColor.z = 1;
     
-    int r = (int)clamp(255.f * currentColor.x, 0.f, 255.f);
-    int g = (int)clamp(255.f * currentColor.y, 0.f, 255.f);
-    int b = (int)clamp(255.f * currentColor.z, 0.f, 255.f);
-    a[id] = (r << 16) + (g << 8) + b;
-    //write_imagef(a, (int2)(idx, idy), (float4)(currentColor.x, currentColor.y, currentColor.z, 0.f));
+    //int r = (int)clamp(255.f * currentColor.x, 0.f, 255.f);
+    //int g = (int)clamp(255.f * currentColor.y, 0.f, 255.f);
+    //int b = (int)clamp(255.f * currentColor.z, 0.f, 255.f);
+    //a[id] = (r << 16) + (g << 8) + b;
+    write_imagef(a, (int2)(idx, idy), (float4)(currentColor.x, currentColor.y, currentColor.z, 0.f));
     ////write_imagef(a, (int2)(idx, idy), (float4)(0.f, 1.f, 1.f, 0.f));
 }

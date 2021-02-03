@@ -65,13 +65,13 @@ int closestBoundingVolume(__global float3* bbMin, __global float3* bbMax, float3
         return index2;
 }
 
-bool castShadowRay(float3 lightPos, float3 currentPositiona, __global float3* p1, __global float3* p2, __global float3* p3, int objAmount,
+bool castShadowRay(float3 lightPos, float3 intersectPos, __global float3* p1, __global float3* p2, __global float3* p3, int objAmount,
     __global float3* bbMin, __global float3* bbMax, __global int* vStart, __global int* vEnd )
 {
-    float bestDistance = length(lightPos - currentPositiona);
+    float bestDistance = length(lightPos - intersectPos);
     
-    float3 currentDirection = normalize(lightPos - currentPositiona);
-    float3 currentPosition = currentPositiona + currentDirection * Epsilon;
+    float3 currentDirection = normalize(lightPos - intersectPos);
+    float3 currentPosition = intersectPos + currentDirection * Epsilon;
     if (IntersectAABB(bbMin[0], bbMax[0], currentPosition, currentDirection))
     {
         bool run = true;
@@ -92,9 +92,7 @@ bool castShadowRay(float3 lightPos, float3 currentPositiona, __global float3* p1
                             if (isnan(currentDistance) == 1 || isinf(currentDistance) == 1)
                                 continue;
                             if (currentDistance < bestDistance)
-                            {
                                 return false;
-                            }
                         }
                     }
                 }
@@ -148,7 +146,10 @@ __kernel void device_function( write_only image2d_t a, float fov, float3 positio
 	__global float* reflectivity, __global float* refractionIndex, __global int* texId, __global float3* lightPos, __global float3* lightCol, int lightAmount,
     __global float3* bbMin, __global float3* bbMax, __global int* vStart, __global int* vEnd)
 #else
-__kernel void device_function( __global int* a, float t )
+__kernel void device_function( __global int* a, float fov, float3 position, float3 leftUpperCorner, float3 rightUpperCorner, float3 leftLowerCorner, float3 rightLowerCorner, __global float3* p1, __global float3* p2, __global float3* p3,
+    __global float3* t1, __global float3* t2, __global float3* t3, __global float3* normals, int objAmount, __global float3* color,
+    __global float* reflectivity, __global float* refractionIndex, __global int* texId, __global float3* lightPos, __global float3* lightCol, int lightAmount,
+    __global float3* bbMin, __global float3* bbMax, __global int* vStart, __global int* vEnd )
 #endif
 {
     // adapted from inigo quilez - iq/2013
@@ -173,10 +174,7 @@ __kernel void device_function( __global int* a, float t )
     float3 horizontal = rightUpperCorner - leftUpperCorner;
     float3 vertical = leftLowerCorner - leftUpperCorner;
     float3 pixelLocation = leftUpperCorner + (horizontal / 512.f) * idx + (vertical / 512.f) * idy;
-    int counter = 1;
-    float3 reflectionColor = (float3)(0.f, 0.f, 0.f);
-    float3 refractionColor = (float3)(0.f, 0.f, 0.f);
-
+    
     rayLocation[0] = position;
     
     rayDirection[0] = normalize(pixelLocation - position);
@@ -194,33 +192,21 @@ __kernel void device_function( __global int* a, float t )
         float3 currentPosition = rayLocation[i];
         float3 currentDirection = rayDirection[i];
         float bestDistance = MAXFLOAT;
-        // Loop over every object
         float currentDistance = -1;
         int closestObject = -1;
 
-
-        // currentgetal *2 ( currentgetal * 2) + 1
-
-        // Determine closest object
-        // Check if we hit the root bounding volumen
+        // Check if we hit the root bounding volume
         // bvh-traversal algorithm adapted from: http://www.davidovic.cz/wiki/lib/exe/fetch.php/school/hapala_sccg2011/hapala_sccg2011.pdf
         if (IntersectAABB(bbMin[0], bbMax[0], currentPosition, currentDirection))
         {
-            // calculate closest child
-            //int current = closestBoundingVolume(bbMin, bbMax, currentPosition, 1, 2);
-            // states:
-            // 1 from child
-            // 2 from sibling
-            // 3 from parent
-            int state = 3;
             bool run = true;
             int counter = 0;
             int current = 0;
             int previous = -1;
+            // Determine closest object
             while (run && counter < 1024)
             {
-                //if (idx == 229 && idy == 283)
-                    //printf("%f, %f\n", (float)current, (float)previous);
+                // make sure no infinite loops happen, even though they shouldnt
                 counter++;
                 if (current > previous && current >= 511)
                 {
@@ -290,8 +276,6 @@ __kernel void device_function( __global int* a, float t )
         if (closestObject < 0)
             continue;
 
-        //currentColor = (float3)(1.f/bestDistance);
-        //break;
         // Check if the normal needs to be flipped
         float3 currentNormal;
         if (dot(normals[(int)closestObject], currentDirection) > 0)
@@ -358,7 +342,6 @@ __kernel void device_function( __global int* a, float t )
             }
             else
             {
-                refractionColor = (float3)(1.f);// TraceRay(new Ray(){ direction = Normalize(snell * ray.direction + (snell * thetaOne - (float)Math.Sqrt(internalReflection)) * currentNormal), position = nearest.Position + ray.direction * 0.002f }, threadId, recursionDepth++);
                 if (i + 1 >= maxDepth)
                     break;
                 rayLocation[i + 1] = intersectionPosition;
@@ -377,20 +360,22 @@ __kernel void device_function( __global int* a, float t )
         
     }
    
-    
-    // TODO: Add reflectivity, refraction  and texture to color
-   
     if (currentColor.x > 1)
         currentColor.x = 1;
     if (currentColor.y > 1)
         currentColor.y = 1;
     if (currentColor.z > 1)
         currentColor.z = 1;
-    
-    //int r = (int)clamp(255.f * currentColor.x, 0.f, 255.f);
-    //int g = (int)clamp(255.f * currentColor.y, 0.f, 255.f);
-    //int b = (int)clamp(255.f * currentColor.z, 0.f, 255.f);
-    //a[id] = (r << 16) + (g << 8) + b;
+#ifdef GLINTEROP
     write_imagef(a, (int2)(idx, idy), (float4)(currentColor.x, currentColor.y, currentColor.z, 0.f));
-    ////write_imagef(a, (int2)(idx, idy), (float4)(0.f, 1.f, 1.f, 0.f));
+#else
+    int r = (int)clamp(255.f * currentColor.x, 0.f, 255.f);
+    int g = (int)clamp(255.f * currentColor.y, 0.f, 255.f);
+    int b = (int)clamp(255.f * currentColor.z, 0.f, 255.f);
+    a[id] = (r << 16) + (g << 8) + b;
+#endif
+
+    
+    
+    
 }

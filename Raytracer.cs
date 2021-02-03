@@ -29,7 +29,7 @@ namespace Template
             Lights.Add(new Light(new Vector3(0, 0, -5), new Vector3(750, 750, 750)));
             Lights.Add(new Light(new Vector3(5, 0, -6), new Vector3(750, 750, 750)));
             Lights.Add(new Light(new Vector3(0, 10, 0), new Vector3(0, 0, 750)));
-            //Lights.Add(new Light(new Vector3(1, 6, -1), new Vector3(50, 25, 25)));
+            Lights.Add(new Light(new Vector3(-12, 40, -77), new Vector3(50, 25, 25)));
 
             // texture taken from https://mossandfog.com/expand-your-mind-with-these-intricate-fractals/
             //var obj1 = ReadObj(objFile1, Matrix4.CreateScale(1f) * Matrix4.CreateRotationY((float)Math.PI * 0.5f) * Matrix4.CreateTranslation(new Vector3(0, -1, -8)), new Texture("../../assets/capsule0.jpg"));

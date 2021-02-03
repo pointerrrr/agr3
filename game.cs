@@ -15,7 +15,7 @@ namespace Template {
 	class Game
 	{
 		// when GLInterop is set to true, the fractal is rendered directly to an OpenGL texture
-		bool GLInterop = true;
+		bool GLInterop = false;
 		// load the OpenCL program; this creates the OpenCL context
 		static OpenCLProgram ocl = new OpenCLProgram( "../../program.cl" );
 		// find the kernel named 'device_function' in the program
@@ -197,6 +197,7 @@ namespace Template {
 				// execute the kernel
 				kernel.Execute( workSize, localSize );
 				// unlock the OpenGL texture so it can be used for drawing a quad
+				//System.Threading.Thread.Sleep(100);
 				kernel.UnlockOpenGLObject( image.texBuffer );
 			}
 			else

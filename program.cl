@@ -80,7 +80,7 @@ bool castShadowRay(float3 lightPos, float3 currentPosition, __global float3* p1,
     __global float3* bbMin, __global float3* bbMax, __global int* vStart, __global int* vEnd )
 {
     return true;
-    float bestDistance = length(lightPos - currentPosition);
+    /*float bestDistance = length(lightPos - currentPosition);
     float3 currentDirection = normalize(lightPos - currentPosition);
     if (IntersectAABB(bbMin[0], bbMax[0], currentPosition, currentDirection))
     {
@@ -152,18 +152,19 @@ bool castShadowRay(float3 lightPos, float3 currentPosition, __global float3* p1,
         }
     }
     return true;
+    */
 }
 
 
 
-#ifdef GLINTEROP
-__kernel void device_function( write_only image2d_t a, float fov, float3 position, float3 leftUpperCorner, float3 rightUpperCorner, float3 leftLowerCorner, float3 rightLowerCorner, __global float3* p1, __global float3* p2, __global float3* p3, 
+//#ifdef GLINTEROP
+__kernel void device_function( __global int* a, float fov, float3 position, float3 leftUpperCorner, float3 rightUpperCorner, float3 leftLowerCorner, float3 rightLowerCorner, __global float3* p1, __global float3* p2, __global float3* p3, 
 	__global float3* t1, __global float3* t2, __global float3* t3, __global float3* normals, int objAmount, __global float3* color, __global bool* isLight,
 	__global float* reflectivity, __global float* refractionIndex, __global int* texId, __global float3* lightPos, __global float3* lightCol, int lightAmount,
     __global float3* bbMin, __global float3* bbMax, __global int* vStart, __global int* vEnd)
-#else
-__kernel void device_function( __global int* a, float t )
-#endif
+//#else
+//__kernel void device_function( __global int* a, float t )
+//#endif
 {
     // adapted from inigo quilez - iq/2013
 	int idx = get_global_id( 0 );
@@ -173,11 +174,14 @@ __kernel void device_function( __global int* a, float t )
 	float2 fragCoord = (float2)( (float)idx, (float)idy ), resolution = (float2)( 512, 512 );
 	float3 col = (float3)( 1.f, 2.f, 3.f );
 
-    int test = 1;
-    int test2 = test / 2;
+    float3 rayLocation[maxDepth];
+    float3 rayDirection[maxDepth];
 
-    float3 rayLocation[maxDepth] = { 0 };
-    float3 rayDirection[maxDepth] = { 0 };
+    for (int i = 0; i < maxDepth; i++)
+    {
+        rayLocation[i] = (float3)(0.f);
+        rayDirection[i] = (float3)(0.f);
+    }
 
     float percentLeft = 1.f;
     float oldLeft = 0.f;
@@ -228,7 +232,7 @@ __kernel void device_function( __global int* a, float t )
             int counter = 0;
             int current = 0;
             int previous = -1;
-            while (run)
+            while (run && counter < 1024)
             {
                 //if (idx == 229 && idy == 283)
                     //printf("%f, %f\n", (float)current, (float)previous);
@@ -396,7 +400,11 @@ __kernel void device_function( __global int* a, float t )
         currentColor.y = 1;
     if (currentColor.z > 1)
         currentColor.z = 1;
-
-   write_imagef(a, (int2)(idx, idy), (float4)(currentColor.x, currentColor.y, currentColor.z, 0.f));
-   //write_imagef(a, (int2)(idx, idy), (float4)(0.f, 1.f, 1.f, 0.f));
+    
+    int r = (int)clamp(255.f * currentColor.x, 0.f, 255.f);
+    int g = (int)clamp(255.f * currentColor.y, 0.f, 255.f);
+    int b = (int)clamp(255.f * currentColor.z, 0.f, 255.f);
+    a[id] = (r << 16) + (g << 8) + b;
+    //write_imagef(a, (int2)(idx, idy), (float4)(currentColor.x, currentColor.y, currentColor.z, 0.f));
+    ////write_imagef(a, (int2)(idx, idy), (float4)(0.f, 1.f, 1.f, 0.f));
 }

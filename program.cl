@@ -59,6 +59,7 @@ bool castShadowRay(float3 lightPos, float3 intersectionPosition, __global float3
         }
     }
     return true;
+
 }
 
 bool IntersectAABB(float3 minC, float3 maxC, float3 position, float3 direction)
@@ -83,16 +84,20 @@ float3 reflect(float3 rayDirection, float3 normal)
     return rayDirection - 2.f * dot(rayDirection, normal) * normal;
 }
 
-int closestBoundingVolume(float3 bbMin1, float3 bbMin2, float3 bbMax1, float3 bbMax2, float3 currentPosition, int current)
+int closestBoundingVolume(__global float3* bbMin, __global float3* bbMax, float3 currentPosition, int index1, int index2)
 {
-    float distToLeft = min(length(bbMin1 - currentPosition), length(bbMax1 - currentPosition));
-    float distToRight = min(length(bbMin2 - currentPosition), length(bbMax2 - currentPosition));
-    if (distToLeft <= distToRight)
-        return current;
+    float index1Dist = min(length(bbMin[index1] - currentPosition), length(bbMax[index1] - currentPosition));
+    float index2Dist = min(length(bbMin[index2] - currentPosition), length(bbMax[index2] - currentPosition));
+    if (index1Dist < index2Dist)
+        return index1;
     else
-        return current + 1;
+        return index2;
 }
 
+bool detectObstacle(__global bbMin, __global bbMax, currentPosition, currentDirection)
+{
+    
+}
 
 #ifdef GLINTEROP
 __kernel void device_function( write_only image2d_t a, float fov, float3 position, float3 leftUpperCorner, float3 rightUpperCorner, float3 leftLowerCorner, float3 rightLowerCorner, __global float3* p1, __global float3* p2, __global float3* p3, 
@@ -156,15 +161,18 @@ __kernel void device_function( __global int* a, float t )
         if (IntersectAABB(bbMin[0], bbMax[0], currentPosition, currentDirection))
         {
             // calculate closest child
-            int current = closestBoundingVolume(bbMin[1], bbMin[2], bbMax[1], bbMax[2], currentPosition, 1);
+            int current = closestBoundingVolume(bbMin, bbMax, currentPosition, 1, 2);
             // states:
             // 1 from child
             // 2 from sibling
             // 3 from parent
             int state = 3;
             bool run = true;
+            int counter = 0;
             while (run) 
             {
+                if (idx == 246 && idy == 295)
+                   printf("%f %f\n", (float)current, (float)(current & 1));
                 switch (state) 
                 {
                 case 1 :
@@ -174,18 +182,20 @@ __kernel void device_function( __global int* a, float t )
                         {
                             
                             run = false;
-                            break;
+                            continue;
                         }
                         // Need to check sibling
                         int closeId;
-                        if (current & 1 == 0)
+                        if ((current & 1) == 0)
                             closeId = current - 1;
                         else
-                            closeId = current;
-                        if (current == closestBoundingVolume(bbMin[closeId], bbMin[closeId + 1], bbMax[closeId], bbMax[closeId + 1], currentPosition, closeId))
+                            closeId = current + 1;
+                        int index1 = min(current, closeId);
+                        int index2 = max(current, closeId);
+                        if (current == closestBoundingVolume(bbMin, bbMax, currentPosition, index1, index2))
                         {
                             // determine new current
-                            if (current & 1 == 0)
+                            if ((current & 1) == 0)
                                 current = current - 1;
                             else
                                 current = current + 1;
@@ -199,6 +209,7 @@ __kernel void device_function( __global int* a, float t )
                             current = (current + 1) / 2 - 1;
                             state = 1;
                         }
+                        counter++;
                         break;
 
                     }
@@ -209,7 +220,7 @@ __kernel void device_function( __global int* a, float t )
                             current = (current + 1) / 2 - 1;
                             state = 1;
                         }
-                        else if (current > 512) 
+                        else if (current >= 511) 
                         {
                             if (vEnd[current] > 0) 
                             {
@@ -234,22 +245,24 @@ __kernel void device_function( __global int* a, float t )
                         }
                         else
                         {
-                            current = closestBoundingVolume(bbMin[current * 2 + 1], bbMin[current * 2 + 2], bbMax[current * 2 + 1], bbMax[current * 2 + 2], currentPosition, current * 2 + 1);
+                            current = closestBoundingVolume(bbMin, bbMax, currentPosition, current * 2 + 1, current * 2 + 2);
+                                //closestBoundingVolume(bbMin[current * 2 + 1], bbMin[current * 2 + 2], bbMax[current * 2 + 1], bbMax[current * 2 + 2], currentPosition, current * 2 + 1);
                             state = 3;
                         }
+                        counter++;
                         break;
                     }
                 case 3 :
                     {
                         if (!IntersectAABB(bbMin[current], bbMax[current], currentPosition, currentDirection)) 
                         {
-                            if (current & 1 == 0)
+                            if ((current & 1) == 0)
                                 current = current - 1;
                             else
                                 current = current + 1;
                             state = 2;
                         }
-                        else if (current > 512) 
+                        else if (current >= 511) 
                         {
                             if (vEnd[current] > 0)
                             {
@@ -269,20 +282,24 @@ __kernel void device_function( __global int* a, float t )
                                 }
                                 if (closestObject != -1)
                                     run = false;
-                                printf("%f %f %f\n", (float)vStart[current], (float)vEnd[current], (float)current);
+                                //if (current == 816 && counter >= 1023)
+                                //    printf("%f %f\n", (float)idx, (float)idy);
+                                //printf("%f %f\n", (float)current, (float)(current & 1));
                                 
                             }
-                            if (current & 1 == 0)
+                            if ((current & 1) == 0)
                                 current = current - 1;
                             else
                                 current = current + 1;
                             state = 2;
+                            
                         }
                         else
                         {
-                            current = closestBoundingVolume(bbMin[current * 2 + 1], bbMin[current * 2 + 2], bbMax[current * 2 + 1], bbMax[current * 2 + 2], currentPosition, current * 2 + 1);
+                            current = closestBoundingVolume(bbMin, bbMax, currentPosition, current * 2 + 1, current * 2 + 2);
                             state = 3;
                         }
+                        counter++;
                         break;
 
                     }
